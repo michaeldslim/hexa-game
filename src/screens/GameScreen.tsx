@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-na
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGameAudio } from '../audio/GameAudioProvider';
 import GestureBoard from '../components/GestureBoard';
+import HighScoreInitialsModal from '../components/HighScoreInitialsModal';
 import PlayerAvatar from '../components/PlayerAvatar';
 import PromotionOverlay from '../components/PromotionOverlay';
 import { careerRankLabel, getCareerProgressCopy } from '../career/careerLabels';
@@ -68,6 +69,9 @@ export default function GameScreen({
     piece,
     score,
     bestScore,
+    bestRecord,
+    pendingHighScore,
+    submitBestInitials,
     level,
     combo,
     gameOver,
@@ -90,9 +94,19 @@ export default function GameScreen({
   });
 
   const handleRestart = useCallback(() => {
+    if (pendingHighScore !== null) {
+      return;
+    }
     runRecordedRef.current = false;
     restart();
-  }, [restart]);
+  }, [pendingHighScore, restart]);
+
+  const bestHudValue = useMemo(() => {
+    if (bestRecord.initials && score <= bestRecord.score && bestScore === bestRecord.score) {
+      return `${bestRecord.initials} ${bestRecord.score}`;
+    }
+    return String(bestScore);
+  }, [bestRecord.initials, bestRecord.score, bestScore, score]);
 
   const cellSize = useMemo(() => {
     const horizontalPad = 24;
@@ -111,7 +125,7 @@ export default function GameScreen({
   const fourthHud =
     playMode === 'level'
       ? { label: strings.hud.goal, value: `${score}/${goalScore}` }
-      : { label: strings.hud.best, value: String(bestScore) };
+      : { label: strings.hud.best, value: bestHudValue };
 
   const levelHud =
     playMode === 'level'
@@ -235,6 +249,12 @@ export default function GameScreen({
       >
         {strings.gestureHint}
       </Text>
+
+      <HighScoreInitialsModal
+        visible={pendingHighScore !== null}
+        score={pendingHighScore ?? 0}
+        onSubmit={submitBestInitials}
+      />
 
       <PromotionOverlay
         visible={promotion !== null}

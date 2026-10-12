@@ -1,13 +1,12 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  BEST_SCORE_KEY,
   MAX_LEVEL,
   RESOLVE_PAUSE_MS,
   dropIntervalMs,
   isRunWon,
   levelGoalScore,
 } from '../constants/game';
+import { loadBestScoreRecord, saveBestScoreRecord, type BestScoreRecord } from '../game/bestScoreStorage';
 import { clearGameSave } from '../game/gameSaveStorage';
 import type { ActivePiece, Board, PlayMode, SavedGameSnapshot, Triplet } from '../types/game';
 import {
@@ -66,7 +65,9 @@ export function useHexaGame({
   const [piece, setPiece] = useState<ActivePiece | null>(() => initialSave?.piece ?? null);
   const [nextGems, setNextGems] = useState<Triplet>(() => initialSave?.nextGems ?? rollTriplet(1));
   const [score, setScore] = useState(() => initialSave?.score ?? 0);
-  const [bestScore, setBestScore] = useState(0);
+  const [bestRecord, setBestRecord] = useState<BestScoreRecord>({ score: 0, initials: '' });
+  const [pendingHighScore, setPendingHighScore] = useState<number | null>(null);
+  const bestRecordRef = useRef(bestRecord);
   const [level, setLevel] = useState(() => initialSave?.level ?? 1);
   const [combo, setCombo] = useState(() => initialSave?.combo ?? 0);
   const [gameOver, setGameOver] = useState(false);
@@ -94,23 +95,31 @@ export function useHexaGame({
   gameOverRef.current = gameOver;
   isResolvingRef.current = isResolving;
   playModeRef.current = playMode;
+  bestRecordRef.current = bestRecord;
 
   useEffect(() => {
-    AsyncStorage.getItem(BEST_SCORE_KEY)
-      .then((raw) => {
-        const parsed = raw ? Number(raw) : 0;
-        if (!Number.isNaN(parsed) && parsed > 0) {
-          setBestScore(parsed);
-        }
-      })
-      .catch(() => undefined);
+    void loadBestScoreRecord().then((record) => {
+      setBestRecord(record);
+      bestRecordRef.current = record;
+    });
   }, []);
 
-  const persistBest = useCallback((value: number) => {
-    setBestScore((prev) => {
-      const next = Math.max(prev, value);
-      void AsyncStorage.setItem(BEST_SCORE_KEY, String(next));
-      return next;
+  const queueHighScoreIfNeeded = useCallback((finalScore: number) => {
+    if (finalScore > bestRecordRef.current.score) {
+      setPendingHighScore(finalScore);
+    }
+  }, []);
+
+  const submitBestInitials = useCallback((initials: string) => {
+    setPendingHighScore((pending) => {
+      if (pending === null) {
+        return null;
+      }
+      const next: BestScoreRecord = { score: pending, initials };
+      setBestRecord(next);
+      bestRecordRef.current = next;
+      void saveBestScoreRecord(next);
+      return null;
     });
   }, []);
 
@@ -118,7 +127,6 @@ export function useHexaGame({
     (delta: number) => {
       setScore((prev) => {
         const nextScore = prev + delta;
-        persistBest(nextScore);
         const prevLevel = levelRef.current;
         const nextLevel = levelFromScore(nextScore);
         if (nextLevel > prevLevel) {
@@ -132,12 +140,13 @@ export function useHexaGame({
           setWon(true);
           setGameOver(true);
           void clearGameSave();
+          queueHighScoreIfNeeded(nextScore);
           onRunEnd?.({ won: true, score: nextScore, level: nextLevel });
         }
         return nextScore;
       });
     },
-    [onRunEnd, persistBest],
+    [onRunEnd, queueHighScoreIfNeeded],
   );
 
   const spawnPiece = useCallback((currentBoard: Board, gems: Triplet): ActivePiece | null => {
@@ -180,6 +189,7 @@ export function useHexaGame({
           isResolvingRef.current = false;
           setIsResolving(false);
           void clearGameSave();
+          queueHighScoreIfNeeded(scoreRef.current);
           onRunEnd?.({
             won: false,
             score: scoreRef.current,
@@ -194,7 +204,7 @@ export function useHexaGame({
         setIsResolving(false);
       }, RESOLVE_PAUSE_MS);
     },
-    [applyScore, onLineMatched, onPieceLocked, onRunEnd, spawnPiece],
+    [applyScore, onLineMatched, onPieceLocked, onRunEnd, queueHighScoreIfNeeded, spawnPiece],
   );
 
   const applySnapshot = useCallback((snapshot: SavedGameSnapshot) => {
@@ -246,6 +256,7 @@ export function useHexaGame({
     setIsResolving(false);
     setStageClearFlash(false);
     setMatchedKeys([]);
+    setPendingHighScore(null);
 
     void clearGameSave();
 
@@ -369,12 +380,17 @@ export function useHexaGame({
   const goalScore =
     playMode === 'level' ? levelGoalScore(Math.min(level, MAX_LEVEL)) : 0;
 
+  const bestScore = Math.max(bestRecord.score, score);
+
   return {
     board,
     piece,
     nextGems,
     score,
     bestScore,
+    bestRecord,
+    pendingHighScore,
+    submitBestInitials,
     level,
     combo,
     gameOver,

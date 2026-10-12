@@ -88,5 +88,12 @@ export interface IStrings {
   };
   stageClear: string;
   comboPopup: string;
+  highScore: {
+    title: string;
+    scoreLine: string;
+    initialsHint: string;
+    initialsPlaceholder: string;
+    save: string;
+  };
   common: { back: string };
 }

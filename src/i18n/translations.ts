@@ -99,6 +99,13 @@ const ko: IStrings = {
   },
   stageClear: '레벨 업!',
   comboPopup: 'x{combo} 콤보!',
+  highScore: {
+    title: '신기록!',
+    scoreLine: '{score}점',
+    initialsHint: '이니셜 1~3자 (영문)을 입력하세요',
+    initialsPlaceholder: 'ABC',
+    save: '기록하기',
+  },
   common: { back: '← 뒤로' },
 };
 
@@ -201,6 +208,13 @@ const en: IStrings = {
   },
   stageClear: 'Level up!',
   comboPopup: 'x{combo} combo!',
+  highScore: {
+    title: 'New high score!',
+    scoreLine: '{score} pts',
+    initialsHint: 'Enter 1–3 letter initials',
+    initialsPlaceholder: 'ABC',
+    save: 'Save',
+  },
   common: { back: '← Back' },
 };
 
