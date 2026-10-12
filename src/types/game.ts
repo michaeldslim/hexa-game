@@ -1,0 +1,33 @@
+export type CandyKind = 'Red' | 'Blue' | 'Gold' | 'Mint';
+
+export type PlayMode = 'endless' | 'level';
+
+export type Board = (CandyKind | null)[][];
+
+export type Triplet = [CandyKind, CandyKind, CandyKind];
+
+export interface ActivePiece {
+  col: number;
+  /** Row index of the top gem in the triplet. */
+  row: number;
+  gems: Triplet;
+}
+
+export interface MatchResolution {
+  board: Board;
+  clearedCount: number;
+  scoreGain: number;
+  hadMatch: boolean;
+}
+
+export interface SavedGameSnapshot {
+  version: 1;
+  playMode: PlayMode;
+  board: Board;
+  piece: ActivePiece | null;
+  nextGems: Triplet;
+  score: number;
+  level: number;
+  combo: number;
+  savedAt: number;
+}
