@@ -34,10 +34,11 @@ Project: [@mike008/hexa-game](https://expo.dev/accounts/mike008/projects/hexa-ga
    ```
 2. Log in: `npx eas login`
 3. Install deps: `npm install`
-4. Build:
-   - **Preview APK** (install on device): `npm run eas:preview`
-   - **Production AAB** (Play Store): `npm run eas:production`
-   - **iOS**: `npm run eas:ios` (Apple credentials required)
+4. Copy local EAS config (not in git): `cp eas.json.example eas.json`
+5. Build:
+   - **Production** (internal APK, **Install** on expo.dev): `npm run eas:android` or `npm run eas:production`
+   - **Dev client**: `npm run eas:development`
+   - **iOS**: `npm run eas:ios`
 
 EAS runs **Prebuild** from `app.json` (local `android/` is ignored on upload via `.easignore`). After changing native plugins or `app.json` Android/iOS settings, cloud builds pick them up automatically; for local Gradle builds run `npm run prebuild:android` again.
 
@@ -65,14 +66,19 @@ This project uses **EAS Build** for cloud builds and **EAS Update** for over-the
 npm install -g eas-cli
 eas login
 eas init   # first time only
+cp eas.json.example eas.json   # required locally; never committed
 ```
 
+**`eas.json` is in `.gitignore`.** EAS still reads it from your working tree when you run `eas build` (it is included in the upload archive). Only **`eas.json.example`** is in git as a template—copy and edit locally. If `eas.json` was tracked before, run `git rm --cached eas.json` once.
+
 ### Build
+
+`production` uses **`distribution: internal`** → Android builds an **APK** with an **Install** button on [expo.dev](https://expo.dev).
 
 ```bash
 eas build --platform android --profile production
 eas build --platform ios --profile production
-eas build --platform all --profile production
+eas build --profile development   # dev client + development channel
 ```
 
 ### OTA Update (JS-only changes)
@@ -88,4 +94,4 @@ OTA updates only reach devices whose `runtimeVersion` matches. A new binary buil
 | Profile | Channel | Purpose |
 |---------|---------|---------|
 | `development` | `development` | Dev client builds |
-| `production` | `production` | App Store / Play Store |
+| `production` | `production` | Internal release APK / TestFlight-style installs + OTA |

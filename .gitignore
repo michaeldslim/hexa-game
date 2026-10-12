@@ -4,6 +4,8 @@ jspm_packages/
 
 # Expo
 .expo/
+eas.json
+eas.json.example
 
 ios/
 ios/build/

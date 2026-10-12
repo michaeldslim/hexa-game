@@ -12,8 +12,9 @@
     "prebuild:android": "expo prebuild --platform android --no-install",
     "apk:release": "cd android && ./gradlew assembleRelease",
     "apk:debug": "cd android && ./gradlew assembleDebug",
-    "eas:preview": "npx eas-cli build --platform android --profile preview",
-    "eas:production": "npx eas-cli build --platform android --profile production",
+    "eas:development": "npx eas-cli build --profile development",
+    "eas:production": "npx eas-cli build --profile production",
+    "eas:android": "npx eas-cli build --platform android --profile production",
     "eas:ios": "npx eas-cli build --platform ios --profile production"
   },
   "dependencies": {
