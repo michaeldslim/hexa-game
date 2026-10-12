@@ -1,15 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import {
-  Platform,
-  Pressable,
-  SafeAreaView,
-  StatusBar as RNStatusBar,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGameAudio } from '../audio/GameAudioProvider';
 import GestureBoard from '../components/GestureBoard';
 import PlayerAvatar from '../components/PlayerAvatar';
@@ -22,8 +14,6 @@ import { useI18n } from '../i18n/I18nContext';
 import { useSettings } from '../settings/SettingsProvider';
 import type { CareerRank } from '../types/career';
 import type { SavedGameSnapshot } from '../types/game';
-
-const ANDROID_TOP = Platform.OS === 'android' ? (RNStatusBar.currentHeight ?? 0) : 0;
 
 type GameScreenProps = {
   initialSave?: SavedGameSnapshot | null;
@@ -40,10 +30,12 @@ export default function GameScreen({
   const { settings } = useSettings();
   const { careerState, recordRunResult } = useCareer();
   const { playSfx, pauseBgm } = useGameAudio();
+  const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
 
   const [promotion, setPromotion] = useState<CareerRank | null>(null);
-  const [hudHeight, setHudHeight] = useState(160);
+  const [headerHeight, setHeaderHeight] = useState(180);
+  const [footerHeight, setFooterHeight] = useState(40);
   const runRecordedRef = useRef(false);
 
   const handleRunEnd = useCallback(
@@ -104,12 +96,13 @@ export default function GameScreen({
 
   const cellSize = useMemo(() => {
     const horizontalPad = 24;
+    const verticalPad = insets.top + insets.bottom + headerHeight + footerHeight + 16;
     const availableWidth = windowWidth - horizontalPad;
-    const availableHeight = Math.max(200, windowHeight - hudHeight - 48);
+    const availableHeight = Math.max(120, windowHeight - verticalPad);
     const byWidth = Math.floor(availableWidth / BOARD_COLS);
     const byHeight = Math.floor(availableHeight / BOARD_ROWS);
-    return Math.max(28, Math.min(byWidth, byHeight, 52));
-  }, [hudHeight, windowHeight, windowWidth]);
+    return Math.max(24, Math.min(byWidth, byHeight, 52));
+  }, [footerHeight, headerHeight, insets.bottom, insets.top, windowHeight, windowWidth]);
 
   const careerBadge = settings.careerModeEnabled
     ? getCareerProgressCopy(strings, careerState).primary
@@ -150,31 +143,44 @@ export default function GameScreen({
   }, [exportSnapshot, gameOver, isResolving, onPauseToIntro, pauseBgm]);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <View
+      style={[
+        styles.safe,
+        {
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom,
+          paddingLeft: insets.left,
+          paddingRight: insets.right,
+        },
+      ]}
+    >
       <StatusBar style="light" />
 
-      <View style={styles.topBar}>
-        <View style={styles.titleRow}>
-          <PlayerAvatar avatarId={settings.playerAvatarId} size="sm" />
-          <Text style={styles.appTitle}>{strings.app.title}</Text>
+      <View
+        style={styles.header}
+        onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}
+      >
+        <View style={styles.topBar}>
+          <View style={styles.titleRow}>
+            <PlayerAvatar avatarId={settings.playerAvatarId} size="sm" />
+            <Text style={styles.appTitle}>{strings.app.title}</Text>
+          </View>
+          <View style={styles.topActions}>
+            <Pressable onPress={onOpenSettings} style={styles.gearButton}>
+              <Text style={styles.gearText}>⚙</Text>
+            </Pressable>
+            <Pressable
+              onPress={handlePause}
+              disabled={gameOver}
+              style={[styles.pauseButton, gameOver && styles.topActionDisabled]}
+            >
+              <Text style={[styles.pauseText, gameOver && styles.pauseTextDisabled]}>
+                {strings.hud.pause}
+              </Text>
+            </Pressable>
+          </View>
         </View>
-        <View style={styles.topActions}>
-          <Pressable onPress={onOpenSettings} style={styles.gearButton}>
-            <Text style={styles.gearText}>⚙</Text>
-          </Pressable>
-          <Pressable
-            onPress={handlePause}
-            disabled={gameOver}
-            style={[styles.pauseButton, gameOver && styles.topActionDisabled]}
-          >
-            <Text style={[styles.pauseText, gameOver && styles.pauseTextDisabled]}>
-              {strings.hud.pause}
-            </Text>
-          </Pressable>
-        </View>
-      </View>
 
-      <View onLayout={(e) => setHudHeight(e.nativeEvent.layout.height + 44)}>
         {careerBadge ? <Text style={styles.careerBadge}>{careerBadge}</Text> : null}
         <View style={styles.statsRow}>
           <StatCard label={strings.hud.score} value={String(score)} />
@@ -223,7 +229,12 @@ export default function GameScreen({
         ) : null}
       </View>
 
-      <Text style={styles.gestureHint}>{strings.gestureHint}</Text>
+      <Text
+        style={styles.gestureHint}
+        onLayout={(e) => setFooterHeight(e.nativeEvent.layout.height)}
+      >
+        {strings.gestureHint}
+      </Text>
 
       <PromotionOverlay
         visible={promotion !== null}
@@ -233,7 +244,7 @@ export default function GameScreen({
         playerAvatarId={settings.playerAvatarId}
         onComplete={() => setPromotion(null)}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -252,7 +263,9 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: '#0b132b',
-    paddingTop: ANDROID_TOP,
+  },
+  header: {
+    zIndex: 2,
   },
   topBar: {
     flexDirection: 'row',
@@ -334,15 +347,17 @@ const styles = StyleSheet.create({
   },
   boardArea: {
     flex: 1,
+    minHeight: 0,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   gestureHint: {
     color: '#8d99ae',
     fontSize: 12,
     textAlign: 'center',
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 8,
     paddingTop: 4,
   },
   gameOverOverlay: {
