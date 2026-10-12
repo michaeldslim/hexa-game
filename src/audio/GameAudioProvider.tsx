@@ -20,6 +20,7 @@ import { getBgmSource, SOUND_ASSETS, type SfxId } from './sounds';
 type GameAudioContextValue = {
   playSfx: (id: SfxId) => void;
   pauseBgm: () => void;
+  resumeBgm: () => void;
 };
 
 const GameAudioContext = createContext<GameAudioContextValue | null>(null);
@@ -65,6 +66,13 @@ export function GameAudioProvider({
   const pauseBgm = useCallback(() => {
     bgmRef.current?.pause();
   }, []);
+
+  const resumeBgm = useCallback(() => {
+    const player = bgmRef.current;
+    if (player && settings.bgmVolume > 0 && bgmActive) {
+      player.play();
+    }
+  }, [bgmActive, settings.bgmVolume]);
 
   useEffect(() => {
     const volume = levelToVolume(settings.bgmVolume);
@@ -132,7 +140,10 @@ export function GameAudioProvider({
     [ensureSfx, settings.sfxVolume],
   );
 
-  const value = useMemo(() => ({ playSfx, pauseBgm }), [pauseBgm, playSfx]);
+  const value = useMemo(
+    () => ({ playSfx, pauseBgm, resumeBgm }),
+    [pauseBgm, playSfx, resumeBgm],
+  );
 
   return <GameAudioContext.Provider value={value}>{children}</GameAudioContext.Provider>;
 }

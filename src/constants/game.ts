@@ -19,6 +19,8 @@ export const DROP_MS_LEVEL_STEP = 45;
 export const RESOLVE_PAUSE_MS = 280;
 
 export const BEST_SCORE_KEY = 'hexaBestScore';
+export const SCORE_RECORDS_KEY = 'hexaScoreRecords';
+export const MAX_SCORE_RECORDS = 10;
 export const PLAY_MODE_KEY = 'hexaPlayMode';
 export const SAVED_GAME_KEY = 'hexaSavedGame';
 

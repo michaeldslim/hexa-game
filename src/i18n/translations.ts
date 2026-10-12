@@ -20,6 +20,7 @@ const ko: IStrings = {
     modeEndless: '무한',
     modeLevel: '레벨',
     difficulty: '난이도',
+    records: '기록',
   },
   controls: {
     left: '◀',
@@ -106,6 +107,12 @@ const ko: IStrings = {
     initialsPlaceholder: 'ABC',
     save: '기록하기',
   },
+  scoreRecords: {
+    title: '최고 기록',
+    empty: '등록된 기록이 없습니다.',
+    close: '닫기',
+    rank: '{rank}위',
+  },
   common: { back: '← 뒤로' },
 };
 
@@ -129,6 +136,7 @@ const en: IStrings = {
     modeEndless: 'Endless',
     modeLevel: 'Level',
     difficulty: 'Tier',
+    records: 'Records',
   },
   controls: {
     left: '◀',
@@ -214,6 +222,12 @@ const en: IStrings = {
     initialsHint: 'Enter 1–3 letter initials',
     initialsPlaceholder: 'ABC',
     save: 'Save',
+  },
+  scoreRecords: {
+    title: 'High scores',
+    empty: 'No saved scores yet.',
+    close: 'Close',
+    rank: '#{rank}',
   },
   common: { back: '← Back' },
 };

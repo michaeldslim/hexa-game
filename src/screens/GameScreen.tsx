@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGameAudio } from '../audio/GameAudioProvider';
 import GestureBoard from '../components/GestureBoard';
 import HighScoreInitialsModal from '../components/HighScoreInitialsModal';
+import HighScoreRecordsModal from '../components/HighScoreRecordsModal';
 import PlayerAvatar from '../components/PlayerAvatar';
 import PromotionOverlay from '../components/PromotionOverlay';
 import { careerRankLabel, getCareerProgressCopy } from '../career/careerLabels';
@@ -30,11 +31,12 @@ export default function GameScreen({
   const { strings, format } = useI18n();
   const { settings } = useSettings();
   const { careerState, recordRunResult } = useCareer();
-  const { playSfx, pauseBgm } = useGameAudio();
+  const { playSfx, pauseBgm, resumeBgm } = useGameAudio();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
 
   const [promotion, setPromotion] = useState<CareerRank | null>(null);
+  const [recordsModalOpen, setRecordsModalOpen] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(180);
   const [footerHeight, setFooterHeight] = useState(40);
   const runRecordedRef = useRef(false);
@@ -70,6 +72,7 @@ export default function GameScreen({
     score,
     bestScore,
     bestRecord,
+    scoreRecords,
     pendingHighScore,
     submitBestInitials,
     level,
@@ -88,6 +91,7 @@ export default function GameScreen({
   } = useHexaGame({
     playMode: initialSave?.playMode ?? settings.playMode,
     initialSave,
+    paused: recordsModalOpen,
     onRunEnd: handleRunEnd,
     onPieceLocked: () => playSfx('dropped'),
     onLineMatched: () => playSfx('lineMatched'),
@@ -99,10 +103,11 @@ export default function GameScreen({
     }
     runRecordedRef.current = false;
     restart();
-  }, [pendingHighScore, restart]);
+    resumeBgm();
+  }, [pendingHighScore, restart, resumeBgm]);
 
   const bestHudValue = useMemo(() => {
-    if (bestRecord.initials && score <= bestRecord.score && bestScore === bestRecord.score) {
+    if (bestRecord.initials && score <= bestRecord.score) {
       return `${bestRecord.initials} ${bestRecord.score}`;
     }
     return String(bestScore);
@@ -122,10 +127,12 @@ export default function GameScreen({
     ? getCareerProgressCopy(strings, careerState).primary
     : null;
 
-  const fourthHud =
+  const thirdHud =
     playMode === 'level'
       ? { label: strings.hud.goal, value: `${score}/${goalScore}` }
       : { label: strings.hud.best, value: bestHudValue };
+
+  const recordsHudValue = bestRecord.initials || '—';
 
   const levelHud =
     playMode === 'level'
@@ -143,7 +150,24 @@ export default function GameScreen({
         }
     : null;
 
-  const gesturesDisabled = gameOver || isResolving;
+  const gesturesDisabled = gameOver || isResolving || recordsModalOpen;
+
+  const handleOpenRecords = useCallback(() => {
+    if (settings.careerModeEnabled || isResolving || pendingHighScore !== null) {
+      return;
+    }
+    setRecordsModalOpen(true);
+    if (!gameOver) {
+      pauseBgm();
+    }
+  }, [gameOver, isResolving, pauseBgm, pendingHighScore, settings.careerModeEnabled]);
+
+  const handleCloseRecords = useCallback(() => {
+    setRecordsModalOpen(false);
+    if (!gameOver) {
+      resumeBgm();
+    }
+  }, [gameOver, resumeBgm]);
 
   const handlePause = useCallback(() => {
     if (gameOver || isResolving) {
@@ -199,8 +223,21 @@ export default function GameScreen({
         <View style={styles.statsRow}>
           <StatCard label={strings.hud.score} value={String(score)} />
           <StatCard label={levelHud.label} value={levelHud.value} />
-          <StatCard label={fourthHud.label} value={fourthHud.value} />
-          <StatCard label={strings.hud.combo} value={combo > 1 ? `x${combo}` : '-'} />
+          <StatCard label={thirdHud.label} value={thirdHud.value} />
+          {settings.careerModeEnabled ? (
+            <StatCard
+              label={strings.hud.combo}
+              value={combo > 1 ? `x${combo}` : '-'}
+            />
+          ) : (
+            <StatCard
+              label={strings.hud.records}
+              value={recordsHudValue}
+              onPress={handleOpenRecords}
+              valueStyle={styles.recordsInitials}
+              disabled={isResolving || pendingHighScore !== null}
+            />
+          )}
         </View>
       </View>
 
@@ -256,6 +293,12 @@ export default function GameScreen({
         onSubmit={submitBestInitials}
       />
 
+      <HighScoreRecordsModal
+        visible={recordsModalOpen}
+        records={scoreRecords}
+        onClose={handleCloseRecords}
+      />
+
       <PromotionOverlay
         visible={promotion !== null}
         title={promotionCopy?.title ?? ''}
@@ -268,14 +311,45 @@ export default function GameScreen({
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.statCard}>
+function StatCard({
+  label,
+  value,
+  onPress,
+  valueStyle,
+  disabled = false,
+}: {
+  label: string;
+  value: string;
+  onPress?: () => void;
+  valueStyle?: object;
+  disabled?: boolean;
+}) {
+  const content = (
+    <>
       <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue} numberOfLines={1}>
+      <Text style={[styles.statValue, valueStyle]} numberOfLines={1}>
         {value}
       </Text>
-    </View>
+    </>
+  );
+
+  if (!onPress) {
+    return <View style={styles.statCard}>{content}</View>;
+  }
+
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.statCard,
+        styles.statCardPressable,
+        disabled && styles.statCardDisabled,
+        pressed && !disabled && styles.statCardPressed,
+      ]}
+      onPress={onPress}
+      disabled={disabled}
+    >
+      {content}
+    </Pressable>
   );
 }
 
@@ -354,6 +428,21 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 6,
     alignItems: 'center',
+  },
+  statCardPressable: {
+    borderWidth: 1,
+    borderColor: '#415a77',
+  },
+  statCardPressed: {
+    opacity: 0.85,
+    backgroundColor: '#243047',
+  },
+  statCardDisabled: {
+    opacity: 0.55,
+  },
+  recordsInitials: {
+    letterSpacing: 4,
+    fontSize: 17,
   },
   statLabel: {
     color: '#8d99ae',

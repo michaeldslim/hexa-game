@@ -21,6 +21,7 @@ export interface IStrings {
     modeLevel: string;
     /** Endless: drop-speed tier from score (1–5). */
     difficulty: string;
+    records: string;
   };
   controls: {
     left: string;
@@ -94,6 +95,12 @@ export interface IStrings {
     initialsHint: string;
     initialsPlaceholder: string;
     save: string;
+  };
+  scoreRecords: {
+    title: string;
+    empty: string;
+    close: string;
+    rank: string;
   };
   common: { back: string };
 }
