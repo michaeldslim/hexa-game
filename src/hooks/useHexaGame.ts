@@ -1,0 +1,393 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  BEST_SCORE_KEY,
+  MAX_LEVEL,
+  RESOLVE_PAUSE_MS,
+  dropIntervalMs,
+  isRunWon,
+  levelGoalScore,
+} from '../constants/game';
+import { clearGameSave } from '../game/gameSaveStorage';
+import type { ActivePiece, Board, PlayMode, SavedGameSnapshot, Triplet } from '../types/game';
+import {
+  createEmptyBoard,
+  defaultSpawn,
+  lockAndResolve,
+  rollTriplet,
+  tryMoveDown,
+  tryMoveHorizontal,
+  tryRotate,
+} from '../utils/hexaEngine';
+
+export interface UseHexaGameOptions {
+  playMode: PlayMode;
+  initialSave?: SavedGameSnapshot | null;
+  onRunEnd?: (payload: { won: boolean; score: number; level: number }) => void;
+  onPieceLocked?: () => void;
+  onLineMatched?: () => void;
+}
+
+export interface HexaGameState {
+  board: Board;
+  piece: ActivePiece | null;
+  nextGems: Triplet;
+  score: number;
+  bestScore: number;
+  level: number;
+  combo: number;
+  gameOver: boolean;
+  won: boolean;
+  isResolving: boolean;
+  stageClearFlash: boolean;
+  matchedKeys: string[];
+}
+
+function levelFromScore(score: number): number {
+  let level = 1;
+  for (let step = 1; step < MAX_LEVEL; step += 1) {
+    if (score >= levelGoalScore(step)) {
+      level = step + 1;
+    } else {
+      break;
+    }
+  }
+  return level;
+}
+
+export function useHexaGame({
+  playMode,
+  initialSave = null,
+  onRunEnd,
+  onPieceLocked,
+  onLineMatched,
+}: UseHexaGameOptions) {
+  const [board, setBoard] = useState<Board>(() => initialSave?.board ?? createEmptyBoard());
+  const [piece, setPiece] = useState<ActivePiece | null>(() => initialSave?.piece ?? null);
+  const [nextGems, setNextGems] = useState<Triplet>(() => initialSave?.nextGems ?? rollTriplet(1));
+  const [score, setScore] = useState(() => initialSave?.score ?? 0);
+  const [bestScore, setBestScore] = useState(0);
+  const [level, setLevel] = useState(() => initialSave?.level ?? 1);
+  const [combo, setCombo] = useState(() => initialSave?.combo ?? 0);
+  const [gameOver, setGameOver] = useState(false);
+  const [won, setWon] = useState(false);
+  const [isResolving, setIsResolving] = useState(false);
+  const [stageClearFlash, setStageClearFlash] = useState(false);
+  const [matchedKeys, setMatchedKeys] = useState<string[]>([]);
+
+  const boardRef = useRef(board);
+  const pieceRef = useRef(piece);
+  const nextGemsRef = useRef(nextGems);
+  const scoreRef = useRef(score);
+  const levelRef = useRef(level);
+  const comboRef = useRef(combo);
+  const gameOverRef = useRef(gameOver);
+  const isResolvingRef = useRef(isResolving);
+  const playModeRef = useRef(playMode);
+
+  boardRef.current = board;
+  pieceRef.current = piece;
+  nextGemsRef.current = nextGems;
+  scoreRef.current = score;
+  levelRef.current = level;
+  comboRef.current = combo;
+  gameOverRef.current = gameOver;
+  isResolvingRef.current = isResolving;
+  playModeRef.current = playMode;
+
+  useEffect(() => {
+    AsyncStorage.getItem(BEST_SCORE_KEY)
+      .then((raw) => {
+        const parsed = raw ? Number(raw) : 0;
+        if (!Number.isNaN(parsed) && parsed > 0) {
+          setBestScore(parsed);
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+
+  const persistBest = useCallback((value: number) => {
+    setBestScore((prev) => {
+      const next = Math.max(prev, value);
+      void AsyncStorage.setItem(BEST_SCORE_KEY, String(next));
+      return next;
+    });
+  }, []);
+
+  const applyScore = useCallback(
+    (delta: number) => {
+      setScore((prev) => {
+        const nextScore = prev + delta;
+        persistBest(nextScore);
+        const prevLevel = levelRef.current;
+        const nextLevel = levelFromScore(nextScore);
+        if (nextLevel > prevLevel) {
+          levelRef.current = nextLevel;
+          setLevel(nextLevel);
+          setStageClearFlash(true);
+          setTimeout(() => setStageClearFlash(false), 900);
+        }
+        if (isRunWon(playModeRef.current, nextLevel, nextScore)) {
+          gameOverRef.current = true;
+          setWon(true);
+          setGameOver(true);
+          void clearGameSave();
+          onRunEnd?.({ won: true, score: nextScore, level: nextLevel });
+        }
+        return nextScore;
+      });
+    },
+    [onRunEnd, persistBest],
+  );
+
+  const spawnPiece = useCallback((currentBoard: Board, gems: Triplet): ActivePiece | null => {
+    return defaultSpawn(currentBoard, gems);
+  }, []);
+
+  const afterLock = useCallback(
+    (currentBoard: Board, lockedPiece: ActivePiece) => {
+      onPieceLocked?.();
+      isResolvingRef.current = true;
+      setIsResolving(true);
+
+      const resolution = lockAndResolve(currentBoard, lockedPiece);
+      if (resolution.clearedCount > 0) {
+        onLineMatched?.();
+      }
+      setBoard(resolution.board);
+      boardRef.current = resolution.board;
+
+      if (resolution.scoreGain > 0) {
+        setCombo((c) => c + 1);
+        applyScore(resolution.scoreGain);
+      } else {
+        setCombo(0);
+      }
+
+      setTimeout(() => {
+        const incoming = nextGemsRef.current;
+        const upcoming = rollTriplet(levelRef.current);
+        setNextGems(upcoming);
+        nextGemsRef.current = upcoming;
+
+        const spawned = spawnPiece(resolution.board, incoming);
+        if (!spawned) {
+          gameOverRef.current = true;
+          setGameOver(true);
+          setWon(false);
+          setPiece(null);
+          pieceRef.current = null;
+          isResolvingRef.current = false;
+          setIsResolving(false);
+          void clearGameSave();
+          onRunEnd?.({
+            won: false,
+            score: scoreRef.current,
+            level: levelRef.current,
+          });
+          return;
+        }
+
+        setPiece(spawned);
+        pieceRef.current = spawned;
+        isResolvingRef.current = false;
+        setIsResolving(false);
+      }, RESOLVE_PAUSE_MS);
+    },
+    [applyScore, onLineMatched, onPieceLocked, onRunEnd, spawnPiece],
+  );
+
+  const applySnapshot = useCallback((snapshot: SavedGameSnapshot) => {
+    boardRef.current = snapshot.board;
+    pieceRef.current = snapshot.piece;
+    nextGemsRef.current = snapshot.nextGems;
+    levelRef.current = snapshot.level;
+    gameOverRef.current = false;
+    isResolvingRef.current = false;
+    scoreRef.current = snapshot.score;
+    comboRef.current = snapshot.combo;
+
+    setBoard(snapshot.board);
+    setPiece(snapshot.piece);
+    setNextGems(snapshot.nextGems);
+    setScore(snapshot.score);
+    setLevel(snapshot.level);
+    setCombo(snapshot.combo);
+    setGameOver(false);
+    setWon(false);
+    setIsResolving(false);
+    setStageClearFlash(false);
+    setMatchedKeys([]);
+  }, []);
+
+  const restart = useCallback(() => {
+    const empty = createEmptyBoard();
+    const firstNext = rollTriplet(1);
+    const firstGems = rollTriplet(1);
+    const spawned = defaultSpawn(empty, firstGems);
+
+    boardRef.current = empty;
+    pieceRef.current = spawned;
+    nextGemsRef.current = firstNext;
+    levelRef.current = 1;
+    gameOverRef.current = false;
+    isResolvingRef.current = false;
+    scoreRef.current = 0;
+    comboRef.current = 0;
+
+    setBoard(empty);
+    setPiece(spawned);
+    setNextGems(firstNext);
+    setScore(0);
+    setLevel(1);
+    setCombo(0);
+    setGameOver(false);
+    setWon(false);
+    setIsResolving(false);
+    setStageClearFlash(false);
+    setMatchedKeys([]);
+
+    void clearGameSave();
+
+    if (!spawned) {
+      setGameOver(true);
+    }
+  }, []);
+
+  const skipPlayModeRestartRef = useRef(!!initialSave);
+  const mountedRef = useRef(false);
+
+  useEffect(() => {
+    if (mountedRef.current) {
+      return;
+    }
+    mountedRef.current = true;
+    if (initialSave) {
+      applySnapshot(initialSave);
+    } else {
+      restart();
+    }
+  }, [applySnapshot, initialSave, restart]);
+
+  useEffect(() => {
+    if (skipPlayModeRestartRef.current) {
+      skipPlayModeRestartRef.current = false;
+      return;
+    }
+    restart();
+  }, [playMode, restart]);
+
+  const exportSnapshot = useCallback((): SavedGameSnapshot | null => {
+    if (gameOverRef.current || isResolvingRef.current) {
+      return null;
+    }
+    return {
+      version: 1,
+      playMode: playModeRef.current,
+      board: boardRef.current,
+      piece: pieceRef.current,
+      nextGems: nextGemsRef.current,
+      score: scoreRef.current,
+      level: levelRef.current,
+      combo: comboRef.current,
+      savedAt: Date.now(),
+    };
+  }, []);
+
+  const lockCurrentPiece = useCallback(() => {
+    const currentBoard = boardRef.current;
+    const currentPiece = pieceRef.current;
+    if (!currentPiece || isResolvingRef.current || gameOverRef.current) {
+      return;
+    }
+    afterLock(currentBoard, currentPiece);
+    setPiece(null);
+    pieceRef.current = null;
+  }, [afterLock]);
+
+  const tickDown = useCallback(() => {
+    if (isResolvingRef.current || gameOverRef.current) {
+      return;
+    }
+    const currentBoard = boardRef.current;
+    const currentPiece = pieceRef.current;
+    if (!currentPiece) {
+      return;
+    }
+
+    const moved = tryMoveDown(currentBoard, currentPiece);
+    if (moved === 'locked') {
+      lockCurrentPiece();
+      return;
+    }
+    setPiece(moved);
+    pieceRef.current = moved;
+  }, [lockCurrentPiece]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      tickDown();
+    }, dropIntervalMs(levelRef.current));
+
+    return () => clearInterval(id);
+  }, [level, tickDown]);
+
+  const moveHorizontal = useCallback((delta: number) => {
+    if (isResolvingRef.current || gameOverRef.current) {
+      return;
+    }
+    const currentBoard = boardRef.current;
+    const currentPiece = pieceRef.current;
+    if (!currentPiece) {
+      return;
+    }
+    const moved = tryMoveHorizontal(currentBoard, currentPiece, delta);
+    if (moved) {
+      setPiece(moved);
+      pieceRef.current = moved;
+    }
+  }, []);
+
+  const softDrop = useCallback(() => {
+    tickDown();
+  }, [tickDown]);
+
+  const rotate = useCallback(() => {
+    if (isResolvingRef.current || gameOverRef.current) {
+      return;
+    }
+    const currentBoard = boardRef.current;
+    const currentPiece = pieceRef.current;
+    if (!currentPiece) {
+      return;
+    }
+    const rotated = tryRotate(currentBoard, currentPiece);
+    setPiece(rotated);
+    pieceRef.current = rotated;
+  }, []);
+
+  const goalScore =
+    playMode === 'level' ? levelGoalScore(Math.min(level, MAX_LEVEL)) : 0;
+
+  return {
+    board,
+    piece,
+    nextGems,
+    score,
+    bestScore,
+    level,
+    combo,
+    gameOver,
+    won,
+    isResolving,
+    stageClearFlash,
+    matchedKeys,
+    goalScore,
+    playMode,
+    moveHorizontal,
+    softDrop,
+    rotate,
+    restart,
+    exportSnapshot,
+  };
+}
