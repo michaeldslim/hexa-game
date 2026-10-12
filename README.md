@@ -54,3 +54,38 @@ First Android build: EAS will prompt to create a **keystore** (or upload your ow
 On-screen: move left/right, soft drop, rotate (order only, no extra gravity step).
 
 Board: **8×14** playable cells; spawn uses two hidden rows above (`row -2`).
+
+## EAS (Expo Application Services)
+
+This project uses **EAS Build** for cloud builds and **EAS Update** for over-the-air (OTA) JS updates.
+
+### Setup
+
+```bash
+npm install -g eas-cli
+eas login
+eas init   # first time only
+```
+
+### Build
+
+```bash
+eas build --platform android --profile production
+eas build --platform ios --profile production
+eas build --platform all --profile production
+```
+
+### OTA Update (JS-only changes)
+
+```bash
+eas update --channel production --message "Fix bug / update description"
+```
+
+OTA updates only reach devices whose `runtimeVersion` matches. A new binary build is required when native code changes.
+
+### Channels
+
+| Profile | Channel | Purpose |
+|---------|---------|---------|
+| `development` | `development` | Dev client builds |
+| `production` | `production` | App Store / Play Store |
