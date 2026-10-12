@@ -198,31 +198,51 @@ export function scoreForClear(tileCount: number, chainIndex: number): number {
   return base + chainBonus;
 }
 
-export function resolveBoard(board: Board): { board: Board; totalCleared: number; totalScore: number } {
+export type MatchClearStep = {
+  matchedKeys: string[];
+  boardBeforeClear: Board;
+};
+
+export function resolveBoardWithSteps(board: Board): {
+  steps: MatchClearStep[];
+  finalBoard: Board;
+  totalCleared: number;
+  totalScore: number;
+} {
   let working = board;
   let totalCleared = 0;
   let totalScore = 0;
   let chain = 0;
+  const steps: MatchClearStep[] = [];
 
   while (true) {
     const keys = findMatchKeys(working);
     if (keys.size === 0) {
       break;
     }
+    steps.push({
+      matchedKeys: [...keys],
+      boardBeforeClear: working,
+    });
     totalScore += scoreForClear(keys.size, chain);
     totalCleared += keys.size;
     working = applyGravity(clearMatches(working, keys));
     chain += 1;
   }
 
-  return { board: working, totalCleared, totalScore };
+  return { steps, finalBoard: working, totalCleared, totalScore };
+}
+
+export function resolveBoard(board: Board): { board: Board; totalCleared: number; totalScore: number } {
+  const { finalBoard, totalCleared, totalScore } = resolveBoardWithSteps(board);
+  return { board: finalBoard, totalCleared, totalScore };
 }
 
 export function lockAndResolve(board: Board, piece: ActivePiece): MatchResolution {
   const locked = lockPiece(board, piece);
-  const { board: settled, totalCleared, totalScore } = resolveBoard(locked);
+  const { finalBoard, totalCleared, totalScore } = resolveBoardWithSteps(locked);
   return {
-    board: settled,
+    board: finalBoard,
     clearedCount: totalCleared,
     scoreGain: totalScore,
     hadMatch: totalCleared > 0,

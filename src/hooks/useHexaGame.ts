@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  MATCH_CHAIN_GAP_MS,
+  MATCH_POP_MS,
+  MATCH_SPARKLE_MS,
   MAX_LEVEL,
-  RESOLVE_PAUSE_MS,
+  SPAWN_AFTER_MATCH_MS,
   dropIntervalMs,
   isRunWon,
   levelGoalScore,
@@ -15,9 +18,12 @@ import {
 import { clearGameSave } from '../game/gameSaveStorage';
 import type { ActivePiece, Board, PlayMode, SavedGameSnapshot, Triplet } from '../types/game';
 import {
+  applyGravity,
+  clearMatches,
   createEmptyBoard,
   defaultSpawn,
-  lockAndResolve,
+  lockPiece,
+  resolveBoardWithSteps,
   rollTriplet,
   tryMoveDown,
   tryMoveHorizontal,
@@ -79,6 +85,8 @@ export function useHexaGame({
   const pausedRef = useRef(paused);
   const [level, setLevel] = useState(() => initialSave?.level ?? 1);
   const [combo, setCombo] = useState(() => initialSave?.combo ?? 0);
+  /** Bumps when cascade combo (x2+) should flash on the board. */
+  const [comboFlashTick, setComboFlashTick] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [won, setWon] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
@@ -170,51 +178,100 @@ export function useHexaGame({
       onPieceLocked?.();
       isResolvingRef.current = true;
       setIsResolving(true);
+      setPiece(null);
+      pieceRef.current = null;
 
-      const resolution = lockAndResolve(currentBoard, lockedPiece);
-      if (resolution.clearedCount > 0) {
-        onLineMatched?.();
-      }
-      setBoard(resolution.board);
-      boardRef.current = resolution.board;
+      const locked = lockPiece(currentBoard, lockedPiece);
+      const { steps, finalBoard, totalScore } = resolveBoardWithSteps(locked);
+      const matchClearMs = MATCH_SPARKLE_MS + MATCH_POP_MS;
 
-      if (resolution.scoreGain > 0) {
-        setCombo((c) => c + 1);
-        applyScore(resolution.scoreGain);
-      } else {
-        setCombo(0);
-      }
+      const spawnNextPiece = (settledBoard: Board) => {
+        setTimeout(() => {
+          const incoming = nextGemsRef.current;
+          const upcoming = rollTriplet(levelRef.current);
+          setNextGems(upcoming);
+          nextGemsRef.current = upcoming;
 
-      setTimeout(() => {
-        const incoming = nextGemsRef.current;
-        const upcoming = rollTriplet(levelRef.current);
-        setNextGems(upcoming);
-        nextGemsRef.current = upcoming;
+          const spawned = spawnPiece(settledBoard, incoming);
+          if (!spawned) {
+            gameOverRef.current = true;
+            setGameOver(true);
+            setWon(false);
+            setPiece(null);
+            pieceRef.current = null;
+            isResolvingRef.current = false;
+            setIsResolving(false);
+            void clearGameSave();
+            queueHighScoreIfNeeded(scoreRef.current);
+            onRunEnd?.({
+              won: false,
+              score: scoreRef.current,
+              level: levelRef.current,
+            });
+            return;
+          }
 
-        const spawned = spawnPiece(resolution.board, incoming);
-        if (!spawned) {
-          gameOverRef.current = true;
-          setGameOver(true);
-          setWon(false);
-          setPiece(null);
-          pieceRef.current = null;
+          setPiece(spawned);
+          pieceRef.current = spawned;
           isResolvingRef.current = false;
           setIsResolving(false);
-          void clearGameSave();
-          queueHighScoreIfNeeded(scoreRef.current);
-          onRunEnd?.({
-            won: false,
-            score: scoreRef.current,
-            level: levelRef.current,
-          });
+        }, SPAWN_AFTER_MATCH_MS);
+      };
+
+      const finishResolution = (settledBoard: Board) => {
+        setMatchedKeys([]);
+        setBoard(settledBoard);
+        boardRef.current = settledBoard;
+
+        if (totalScore > 0) {
+          applyScore(totalScore);
+        }
+
+        spawnNextPiece(settledBoard);
+      };
+
+      if (steps.length === 0) {
+        setBoard(locked);
+        boardRef.current = locked;
+        setCombo(0);
+        spawnNextPiece(locked);
+        return;
+      }
+
+      onLineMatched?.();
+      setCombo(0);
+
+      let stepIndex = 0;
+      const runStep = () => {
+        if (stepIndex >= steps.length) {
+          finishResolution(finalBoard);
           return;
         }
 
-        setPiece(spawned);
-        pieceRef.current = spawned;
-        isResolvingRef.current = false;
-        setIsResolving(false);
-      }, RESOLVE_PAUSE_MS);
+        const cascade = stepIndex + 1;
+        if (cascade >= 2) {
+          setCombo(cascade);
+          setComboFlashTick((t) => t + 1);
+        }
+
+        const step = steps[stepIndex];
+        setBoard(step.boardBeforeClear);
+        boardRef.current = step.boardBeforeClear;
+        setMatchedKeys(step.matchedKeys);
+
+        setTimeout(() => {
+          setMatchedKeys([]);
+          const afterStep = applyGravity(
+            clearMatches(step.boardBeforeClear, new Set(step.matchedKeys)),
+          );
+          setBoard(afterStep);
+          boardRef.current = afterStep;
+          stepIndex += 1;
+          setTimeout(runStep, MATCH_CHAIN_GAP_MS);
+        }, matchClearMs);
+      };
+
+      runStep();
     },
     [applyScore, onLineMatched, onPieceLocked, onRunEnd, queueHighScoreIfNeeded, spawnPiece],
   );
@@ -263,6 +320,7 @@ export function useHexaGame({
     setScore(0);
     setLevel(1);
     setCombo(0);
+    setComboFlashTick(0);
     setGameOver(false);
     setWon(false);
     setIsResolving(false);
@@ -406,6 +464,7 @@ export function useHexaGame({
     submitBestInitials,
     level,
     combo,
+    comboFlashTick,
     gameOver,
     won,
     isResolving,

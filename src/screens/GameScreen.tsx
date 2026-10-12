@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { COMBO_POPUP_MS } from '../constants/game';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGameAudio } from '../audio/GameAudioProvider';
 import GestureBoard from '../components/GestureBoard';
@@ -37,6 +38,8 @@ export default function GameScreen({
 
   const [promotion, setPromotion] = useState<CareerRank | null>(null);
   const [recordsModalOpen, setRecordsModalOpen] = useState(false);
+  const [comboDisplay, setComboDisplay] = useState<number | null>(null);
+  const comboAnim = useRef(new Animated.Value(0)).current;
   const [headerHeight, setHeaderHeight] = useState(180);
   const [footerHeight, setFooterHeight] = useState(40);
   const runRecordedRef = useRef(false);
@@ -77,9 +80,11 @@ export default function GameScreen({
     submitBestInitials,
     level,
     combo,
+    comboFlashTick,
     gameOver,
     won,
     isResolving,
+    matchedKeys,
     stageClearFlash,
     goalScore,
     playMode,
@@ -95,6 +100,42 @@ export default function GameScreen({
     onRunEnd: handleRunEnd,
     onPieceLocked: () => playSfx('dropped'),
     onLineMatched: () => playSfx('lineMatched'),
+  });
+
+  useEffect(() => {
+    if (comboFlashTick === 0 || combo < 2) {
+      return;
+    }
+
+    setComboDisplay(combo);
+    comboAnim.setValue(0);
+    const anim = Animated.timing(comboAnim, {
+      toValue: 1,
+      duration: COMBO_POPUP_MS,
+      easing: Easing.bezier(0.2, 0.85, 0.35, 1),
+      useNativeDriver: true,
+    });
+    anim.start(({ finished }) => {
+      if (finished) {
+        setComboDisplay(null);
+      }
+    });
+    return () => {
+      anim.stop();
+    };
+  }, [combo, comboAnim, comboFlashTick]);
+
+  const comboScale = comboAnim.interpolate({
+    inputRange: [0, 0.15, 0.85, 1],
+    outputRange: [0.45, 1.15, 1, 0.85],
+  });
+  const comboOpacity = comboAnim.interpolate({
+    inputRange: [0, 0.08, 0.82, 1],
+    outputRange: [0, 1, 1, 0],
+  });
+  const comboTranslateY = comboAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -24],
   });
 
   const handleRestart = useCallback(() => {
@@ -245,6 +286,7 @@ export default function GameScreen({
         <GestureBoard
           board={board}
           piece={piece}
+          matchedKeys={matchedKeys}
           cellSize={cellSize}
           disabled={gesturesDisabled}
           onMoveLeft={() => moveHorizontal(-1)}
@@ -259,10 +301,19 @@ export default function GameScreen({
           </View>
         ) : null}
 
-        {combo >= 2 ? (
-          <View style={styles.comboPopup} pointerEvents="none">
-            <Text style={styles.comboText}>{format(strings.comboPopup, { combo })}</Text>
-          </View>
+        {comboDisplay !== null ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.comboPopup,
+              {
+                opacity: comboOpacity,
+                transform: [{ scale: comboScale }, { translateY: comboTranslateY }],
+              },
+            ]}
+          >
+            <Text style={styles.comboText}>{format(strings.comboPopup, { combo: comboDisplay })}</Text>
+          </Animated.View>
         ) : null}
 
         {gameOver ? (
@@ -516,17 +567,17 @@ const styles = StyleSheet.create({
   },
   comboPopup: {
     position: 'absolute',
-    top: 12,
-    alignSelf: 'center',
-    backgroundColor: 'rgba(76, 201, 240, 0.2)',
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#4cc9f0',
+    top: '38%',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
   },
   comboText: {
-    color: '#4cc9f0',
-    fontWeight: '700',
+    color: '#ffd166',
+    fontWeight: '900',
+    fontSize: 30,
+    textShadowColor: '#0b132b',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
   },
 });

@@ -4,6 +4,7 @@ import { BOARD_COLS, BOARD_ROWS } from '../constants/game';
 import type { ActivePiece, Board } from '../types/game';
 import { cellAt, pieceCells } from '../utils/hexaEngine';
 import CandyGem from './CandyGem';
+import MatchClearCandy from './MatchClearCandy';
 
 const SWIPE_THRESHOLD = 24;
 const TAP_THRESHOLD = 20;
@@ -14,6 +15,7 @@ const SOFT_DROP_MAX_STEPS = 5;
 type GestureBoardProps = {
   board: Board;
   piece: ActivePiece | null;
+  matchedKeys: string[];
   cellSize: number;
   disabled: boolean;
   onMoveLeft: () => void;
@@ -25,6 +27,7 @@ type GestureBoardProps = {
 export default function GestureBoard({
   board,
   piece,
+  matchedKeys,
   cellSize,
   disabled,
   onMoveLeft,
@@ -65,6 +68,8 @@ export default function GestureBoard({
     }
     return new Set(pieceCells(piece).map((c) => `${c.row}:${c.col}`));
   }, [piece]);
+
+  const matchedKeySet = useMemo(() => new Set(matchedKeys), [matchedKeys]);
 
   const panResponder = useMemo(
     () =>
@@ -134,8 +139,10 @@ export default function GestureBoard({
         {Array.from({ length: BOARD_ROWS }, (_, row) => (
           <View key={`r-${row}`} style={styles.gridRow} pointerEvents="box-none">
             {Array.from({ length: BOARD_COLS }, (_, col) => {
+              const cellKey = `${row}:${col}`;
               const kind = cellAt(board, row, col, piece);
-              const isActive = activeKeys.has(`${row}:${col}`);
+              const isActive = activeKeys.has(cellKey);
+              const isMatching = matchedKeySet.has(cellKey);
 
               return (
                 <View
@@ -150,7 +157,9 @@ export default function GestureBoard({
                   pointerEvents="box-none"
                 >
                   {kind ? (
-                    isActive ? (
+                    isMatching ? (
+                      <MatchClearCandy kind={kind} size={cellSize * 0.94} />
+                    ) : isActive ? (
                       <Pressable
                         onPress={handleRotatePress}
                         disabled={disabled}

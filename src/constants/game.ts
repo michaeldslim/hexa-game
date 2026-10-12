@@ -16,7 +16,13 @@ export const DROP_MS_BASE = 750;
 export const DROP_MS_MIN = 320;
 export const DROP_MS_LEVEL_STEP = 45;
 
-export const RESOLVE_PAUSE_MS = 280;
+/** Sparkle + pop before cells are removed from the board. */
+export const MATCH_SPARKLE_MS = 360;
+export const MATCH_POP_MS = 200;
+export const MATCH_CHAIN_GAP_MS = 90;
+export const SPAWN_AFTER_MATCH_MS = 160;
+/** Combo callout visible ~1s (candy-break style fade). */
+export const COMBO_POPUP_MS = 1000;
 
 export const BEST_SCORE_KEY = 'hexaBestScore';
 export const SCORE_RECORDS_KEY = 'hexaScoreRecords';
