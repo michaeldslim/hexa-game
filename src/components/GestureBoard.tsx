@@ -30,6 +30,7 @@ export default function GestureBoard({
   onRotate,
 }: GestureBoardProps) {
   const movedRef = useRef(false);
+  const softDropStepsRef = useRef(0);
   const pieceRef = useRef(piece);
   const disabledRef = useRef(disabled);
   const cellSizeRef = useRef(cellSize);
@@ -39,6 +40,19 @@ export default function GestureBoard({
   disabledRef.current = disabled;
   cellSizeRef.current = cellSize;
   handlersRef.current = { onMoveLeft, onMoveRight, onSoftDrop, onRotate };
+
+  const applySoftDropSteps = (dy: number, dx: number) => {
+    if (dy < SWIPE_THRESHOLD || dy <= Math.abs(dx)) {
+      return;
+    }
+    const stepPx = Math.max(20, cellSizeRef.current * 0.5);
+    const targetSteps = Math.floor(dy / stepPx);
+    while (softDropStepsRef.current < targetSteps) {
+      handlersRef.current.onSoftDrop();
+      softDropStepsRef.current += 1;
+      movedRef.current = true;
+    }
+  };
 
   const activeKeys = useMemo(() => {
     if (!piece) {
@@ -56,11 +70,16 @@ export default function GestureBoard({
           (Math.abs(gesture.dx) > TAP_THRESHOLD || Math.abs(gesture.dy) > TAP_THRESHOLD),
         onPanResponderGrant: () => {
           movedRef.current = false;
+          softDropStepsRef.current = 0;
         },
         onPanResponderMove: (_, gesture) => {
+          if (disabledRef.current) {
+            return;
+          }
           if (Math.abs(gesture.dx) > TAP_THRESHOLD || Math.abs(gesture.dy) > TAP_THRESHOLD) {
             movedRef.current = true;
           }
+          applySoftDropSteps(gesture.dy, gesture.dx);
         },
         onPanResponderRelease: (_, gesture) => {
           if (disabledRef.current) {
@@ -83,9 +102,7 @@ export default function GestureBoard({
             return;
           }
 
-          if (dy >= SWIPE_THRESHOLD) {
-            handlersRef.current.onSoftDrop();
-          }
+          applySoftDropSteps(dy, dx);
         },
       }),
     [],
