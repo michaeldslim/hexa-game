@@ -7,6 +7,9 @@ import CandyGem from './CandyGem';
 
 const SWIPE_THRESHOLD = 24;
 const TAP_THRESHOLD = 20;
+/** Finger travel per one soft-drop step (~1.3 grid cells). */
+const SOFT_DROP_STEP_CELL_RATIO = 1.35;
+const SOFT_DROP_MAX_STEPS = 5;
 
 type GestureBoardProps = {
   board: Board;
@@ -41,15 +44,17 @@ export default function GestureBoard({
   cellSizeRef.current = cellSize;
   handlersRef.current = { onMoveLeft, onMoveRight, onSoftDrop, onRotate };
 
-  const applySoftDropSteps = (dy: number, dx: number) => {
-    if (dy < SWIPE_THRESHOLD || dy <= Math.abs(dx)) {
+  const trySoftDropAlongSwipe = (dy: number, dx: number, maxNewSteps: number) => {
+    if (dy < SWIPE_THRESHOLD || dy <= Math.abs(dx) || maxNewSteps <= 0) {
       return;
     }
-    const stepPx = Math.max(20, cellSizeRef.current * 0.5);
-    const targetSteps = Math.floor(dy / stepPx);
-    while (softDropStepsRef.current < targetSteps) {
+    const stepPx = Math.max(32, cellSizeRef.current * SOFT_DROP_STEP_CELL_RATIO);
+    const targetSteps = Math.min(SOFT_DROP_MAX_STEPS, Math.floor(dy / stepPx));
+    let added = 0;
+    while (softDropStepsRef.current < targetSteps && added < maxNewSteps) {
       handlersRef.current.onSoftDrop();
       softDropStepsRef.current += 1;
+      added += 1;
       movedRef.current = true;
     }
   };
@@ -79,7 +84,7 @@ export default function GestureBoard({
           if (Math.abs(gesture.dx) > TAP_THRESHOLD || Math.abs(gesture.dy) > TAP_THRESHOLD) {
             movedRef.current = true;
           }
-          applySoftDropSteps(gesture.dy, gesture.dx);
+          trySoftDropAlongSwipe(gesture.dy, gesture.dx, 1);
         },
         onPanResponderRelease: (_, gesture) => {
           if (disabledRef.current) {
@@ -102,7 +107,7 @@ export default function GestureBoard({
             return;
           }
 
-          applySoftDropSteps(dy, dx);
+          trySoftDropAlongSwipe(dy, dx, SOFT_DROP_MAX_STEPS);
         },
       }),
     [],
