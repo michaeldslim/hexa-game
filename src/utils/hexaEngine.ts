@@ -2,10 +2,12 @@ import {
   BOARD_COLS,
   BOARD_ROWS,
   MIN_MATCH,
+  ROW_MATCH_BONUS_MIN,
   SCORE_CHAIN_BONUS,
   SCORE_PER_TILE,
   activeKinds,
   SPAWN_COLUMN_INDICES,
+  SPAWN_ROW,
 } from '../constants/game';
 import type { ActivePiece, Board, CandyKind, MatchResolution, Triplet } from '../types/game';
 
@@ -22,13 +24,13 @@ export function createEmptyBoard(): Board {
   );
 }
 
+function pickGem(level: number): CandyKind {
+  const pool = activeKinds(level);
+  return pool[Math.floor(Math.random() * pool.length)]!;
+}
+
 export function rollTriplet(level: number): Triplet {
-  const pool = [...activeKinds(level)];
-  for (let i = pool.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
-  return [pool[0], pool[1], pool[2]];
+  return [pickGem(level), pickGem(level), pickGem(level)];
 }
 
 export function rotateTriplet(gems: Triplet): Triplet {
@@ -58,8 +60,6 @@ export function canPlacePiece(board: Board, piece: ActivePiece): boolean {
 export function createSpawnPiece(col: number, row: number, gems: Triplet): ActivePiece {
   return { col, row, gems };
 }
-
-const SPAWN_ROW = -2;
 
 export function defaultSpawn(board: Board, gems: Triplet): ActivePiece | null {
   const viableCols: number[] = [];
@@ -198,9 +198,103 @@ export function scoreForClear(tileCount: number, chainIndex: number): number {
   return base + chainBonus;
 }
 
+function keysToKinds(board: Board, keys: Set<string>): CandyKind[] {
+  const kinds: CandyKind[] = [];
+  keys.forEach((key) => {
+    const [rowStr, colStr] = key.split(':');
+    const row = Number(rowStr);
+    const col = Number(colStr);
+    const kind = board[row]?.[col];
+    if (kind) {
+      kinds.push(kind);
+    }
+  });
+  return kinds;
+}
+
+function addFilledRowKeys(board: Board, row: number, keys: Set<string>): void {
+  for (let col = 0; col < BOARD_COLS; col += 1) {
+    if (board[row][col]) {
+      keys.add(`${row}:${col}`);
+    }
+  }
+}
+
+/** 4+ line match also clears that row (Star Line). */
+export function expandMatchKeysWithRowBonus(
+  board: Board,
+  baseKeys: Set<string>,
+): { keys: Set<string>; hadRowBonus: boolean } {
+  const keys = new Set(baseKeys);
+  const bonusRows = new Set<number>();
+
+  for (const [dr, dc] of LINE_DIRS) {
+    for (let row = 0; row < BOARD_ROWS; row += 1) {
+      for (let col = 0; col < BOARD_COLS; col += 1) {
+        const kind = board[row][col];
+        if (!kind) {
+          continue;
+        }
+
+        const prevRow = row - dr;
+        const prevCol = col - dc;
+        if (
+          prevRow >= 0 &&
+          prevRow < BOARD_ROWS &&
+          prevCol >= 0 &&
+          prevCol < BOARD_COLS &&
+          board[prevRow][prevCol] === kind
+        ) {
+          continue;
+        }
+
+        let length = 0;
+        let scanRow = row;
+        let scanCol = col;
+        while (
+          scanRow >= 0 &&
+          scanRow < BOARD_ROWS &&
+          scanCol >= 0 &&
+          scanCol < BOARD_COLS &&
+          board[scanRow][scanCol] === kind
+        ) {
+          length += 1;
+          scanRow += dr;
+          scanCol += dc;
+        }
+
+        if (length < ROW_MATCH_BONUS_MIN) {
+          continue;
+        }
+
+        scanRow = row;
+        scanCol = col;
+        let hitsBase = false;
+        for (let i = 0; i < length; i += 1) {
+          if (baseKeys.has(`${scanRow}:${scanCol}`)) {
+            hitsBase = true;
+          }
+          scanRow += dr;
+          scanCol += dc;
+        }
+
+        if (hitsBase) {
+          bonusRows.add(row);
+        }
+      }
+    }
+  }
+
+  bonusRows.forEach((bonusRow) => addFilledRowKeys(board, bonusRow, keys));
+  return { keys, hadRowBonus: bonusRows.size > 0 };
+}
+
 export type MatchClearStep = {
   matchedKeys: string[];
   boardBeforeClear: Board;
+  scoreGain: number;
+  clearedKinds: CandyKind[];
+  hadRowBonus: boolean;
 };
 
 export function resolveBoardWithSteps(board: Board): {
@@ -216,15 +310,20 @@ export function resolveBoardWithSteps(board: Board): {
   const steps: MatchClearStep[] = [];
 
   while (true) {
-    const keys = findMatchKeys(working);
-    if (keys.size === 0) {
+    const baseKeys = findMatchKeys(working);
+    if (baseKeys.size === 0) {
       break;
     }
+    const { keys, hadRowBonus } = expandMatchKeysWithRowBonus(working, baseKeys);
+    const stepScore = scoreForClear(keys.size, chain);
     steps.push({
       matchedKeys: [...keys],
       boardBeforeClear: working,
+      scoreGain: stepScore,
+      clearedKinds: keysToKinds(working, keys),
+      hadRowBonus,
     });
-    totalScore += scoreForClear(keys.size, chain);
+    totalScore += stepScore;
     totalCleared += keys.size;
     working = applyGravity(clearMatches(working, keys));
     chain += 1;
