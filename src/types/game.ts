@@ -21,7 +21,7 @@ export interface MatchResolution {
 }
 
 export interface SavedGameSnapshot {
-  version: 1;
+  version: 1 | 2;
   playMode: PlayMode;
   board: Board;
   piece: ActivePiece | null;
@@ -30,4 +30,13 @@ export interface SavedGameSnapshot {
   level: number;
   combo: number;
   savedAt: number;
+  heldGems?: Triplet | null;
+  holdUsed?: boolean;
+  collectProgress?: Partial<Record<CandyKind, number>>;
 }
+
+export type MatchFeedback = {
+  id: number;
+  score: number;
+  rowBonus: boolean;
+};

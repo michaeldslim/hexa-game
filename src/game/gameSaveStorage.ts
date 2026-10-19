@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SAVED_GAME_KEY } from '../constants/game';
+import { BOARD_COLS, BOARD_ROWS, SAVED_GAME_KEY } from '../constants/game';
 import type { SavedGameSnapshot } from '../types/game';
 
 function isValidSnapshot(value: unknown): value is SavedGameSnapshot {
@@ -7,11 +7,19 @@ function isValidSnapshot(value: unknown): value is SavedGameSnapshot {
     return false;
   }
   const snap = value as SavedGameSnapshot;
-  return (
-    snap.version === 1 &&
-    (snap.playMode === 'level' || snap.playMode === 'endless') &&
+  const versionOk = snap.version === 1 || snap.version === 2;
+  const boardOk =
     Array.isArray(snap.board) &&
+    snap.board.length === BOARD_ROWS &&
+    snap.board.every(
+      (row) => Array.isArray(row) && row.length === BOARD_COLS,
+    );
+  return (
+    versionOk &&
+    (snap.playMode === 'level' || snap.playMode === 'endless') &&
+    boardOk &&
     Array.isArray(snap.nextGems) &&
+    snap.nextGems.length === 3 &&
     typeof snap.score === 'number' &&
     typeof snap.level === 'number' &&
     typeof snap.combo === 'number'
