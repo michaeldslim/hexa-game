@@ -1,6 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { PanResponder, Pressable, StyleSheet, View } from 'react-native';
 import { BOARD_COLS, BOARD_ROWS } from '../constants/game';
+import { boardThemes, cellFill, type BoardThemeId } from '../theme/boardThemes';
 import type { ActivePiece, Board } from '../types/game';
 import { cellAt, pieceCells } from '../utils/hexaEngine';
 import CandyGem from './CandyGem';
@@ -17,6 +18,7 @@ type GestureBoardProps = {
   piece: ActivePiece | null;
   matchedKeys: string[];
   cellSize: number;
+  boardThemeId?: BoardThemeId;
   disabled: boolean;
   onMoveLeft: () => void;
   onMoveRight: () => void;
@@ -29,6 +31,7 @@ export default function GestureBoard({
   piece,
   matchedKeys,
   cellSize,
+  boardThemeId = 'midnight',
   disabled,
   onMoveLeft,
   onMoveRight,
@@ -70,6 +73,8 @@ export default function GestureBoard({
   }, [piece]);
 
   const matchedKeySet = useMemo(() => new Set(matchedKeys), [matchedKeys]);
+  const boardTheme = boardThemes[boardThemeId];
+  const showColumnAccent = boardTheme.accentColumnTint !== 'transparent';
 
   const panResponder = useMemo(
     () =>
@@ -133,9 +138,24 @@ export default function GestureBoard({
       {...panResponder.panHandlers}
     >
       <View
-        style={[styles.grid, { width: gridWidth, height: gridHeight }]}
+        style={[
+          styles.grid,
+          {
+            width: gridWidth,
+            height: gridHeight,
+            backgroundColor: boardTheme.well,
+            borderColor: boardTheme.frame,
+          },
+        ]}
         pointerEvents="box-none"
       >
+        <View
+          pointerEvents="none"
+          style={[
+            styles.gridInnerGlow,
+            { borderColor: boardTheme.frameInner },
+          ]}
+        />
         {Array.from({ length: BOARD_ROWS }, (_, row) => (
           <View key={`r-${row}`} style={styles.gridRow} pointerEvents="box-none">
             {Array.from({ length: BOARD_COLS }, (_, col) => {
@@ -152,10 +172,21 @@ export default function GestureBoard({
                     {
                       width: cellSize,
                       height: cellSize,
+                      backgroundColor: cellFill(boardTheme, row, col),
+                      borderColor: boardTheme.cellBorder,
                     },
                   ]}
                   pointerEvents="box-none"
                 >
+                  {showColumnAccent && boardTheme.accentColumnIndices.includes(col) ? (
+                    <View
+                      pointerEvents="none"
+                      style={[
+                        StyleSheet.absoluteFill,
+                        { backgroundColor: boardTheme.accentColumnTint },
+                      ]}
+                    />
+                  ) : null}
                   {kind ? (
                     isMatching ? (
                       <MatchClearCandy kind={kind} size={cellSize * 0.94} />
@@ -188,20 +219,28 @@ const styles = StyleSheet.create({
   },
   grid: {
     borderWidth: 2,
-    borderColor: '#415a77',
-    borderRadius: 8,
+    borderRadius: 10,
     overflow: 'hidden',
-    backgroundColor: '#111827',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  gridInnerGlow: {
+    ...StyleSheet.absoluteFill,
+    borderWidth: 2,
+    borderRadius: 8,
+    margin: 3,
   },
   gridRow: {
     flexDirection: 'row',
   },
   cell: {
-    backgroundColor: '#25344a',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#334155',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   gemPressable: {
     alignItems: 'center',
