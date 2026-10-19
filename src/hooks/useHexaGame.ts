@@ -7,8 +7,10 @@ import {
   SPAWN_AFTER_MATCH_MS,
   dropIntervalMs,
   isRunWon,
+  levelCollectGoal,
   levelGoalScore,
 } from '../constants/game';
+import { gamePaceScale, type GamePace } from '../constants/gamePace';
 import { loadBestScoreRecord, saveBestScoreRecord, type BestScoreRecord } from '../game/bestScoreStorage';
 import {
   appendScoreRecord,
@@ -16,7 +18,15 @@ import {
   type ScoreRecordEntry,
 } from '../game/scoreRecordsStorage';
 import { clearGameSave } from '../game/gameSaveStorage';
-import type { ActivePiece, Board, PlayMode, SavedGameSnapshot, Triplet } from '../types/game';
+import type {
+  ActivePiece,
+  Board,
+  CandyKind,
+  MatchFeedback,
+  PlayMode,
+  SavedGameSnapshot,
+  Triplet,
+} from '../types/game';
 import {
   applyGravity,
   clearMatches,
@@ -32,6 +42,7 @@ import {
 
 export interface UseHexaGameOptions {
   playMode: PlayMode;
+  gamePace?: GamePace;
   initialSave?: SavedGameSnapshot | null;
   paused?: boolean;
   onRunEnd?: (payload: { won: boolean; score: number; level: number }) => void;
@@ -68,6 +79,7 @@ function levelFromScore(score: number): number {
 
 export function useHexaGame({
   playMode,
+  gamePace = 'normal',
   initialSave = null,
   paused = false,
   onRunEnd,
@@ -92,6 +104,11 @@ export function useHexaGame({
   const [isResolving, setIsResolving] = useState(false);
   const [stageClearFlash, setStageClearFlash] = useState(false);
   const [matchedKeys, setMatchedKeys] = useState<string[]>([]);
+  const [heldGems, setHeldGems] = useState<Triplet | null>(() => initialSave?.heldGems ?? null);
+  const [collectProgress, setCollectProgress] = useState<Partial<Record<CandyKind, number>>>(
+    () => initialSave?.collectProgress ?? {},
+  );
+  const [matchFeedback, setMatchFeedback] = useState<MatchFeedback | null>(null);
 
   const boardRef = useRef(board);
   const pieceRef = useRef(piece);
@@ -102,6 +119,11 @@ export function useHexaGame({
   const gameOverRef = useRef(gameOver);
   const isResolvingRef = useRef(isResolving);
   const playModeRef = useRef(playMode);
+  const gamePaceRef = useRef(gamePace);
+  const heldGemsRef = useRef(heldGems);
+  const [holdUsed, setHoldUsed] = useState(() => initialSave?.holdUsed ?? false);
+  const holdUsedRef = useRef(holdUsed);
+  const matchFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   boardRef.current = board;
   pieceRef.current = piece;
@@ -112,8 +134,13 @@ export function useHexaGame({
   gameOverRef.current = gameOver;
   isResolvingRef.current = isResolving;
   playModeRef.current = playMode;
+  gamePaceRef.current = gamePace;
+  heldGemsRef.current = heldGems;
+  holdUsedRef.current = holdUsed;
   bestRecordRef.current = bestRecord;
   pausedRef.current = paused;
+
+  const paceScale = useCallback(() => gamePaceScale(gamePaceRef.current), []);
 
   useEffect(() => {
     void loadBestScoreRecord().then((record) => {
@@ -183,7 +210,37 @@ export function useHexaGame({
 
       const locked = lockPiece(currentBoard, lockedPiece);
       const { steps, finalBoard, totalScore } = resolveBoardWithSteps(locked);
-      const matchClearMs = MATCH_SPARKLE_MS + MATCH_POP_MS;
+      const scale = paceScale();
+      const matchClearMs = Math.round(
+        (MATCH_SPARKLE_MS + MATCH_POP_MS) * scale.matchSparkle,
+      );
+      const chainGapMs = Math.round(MATCH_CHAIN_GAP_MS * scale.matchChainGap);
+      const spawnDelayMs = Math.round(SPAWN_AFTER_MATCH_MS * scale.spawnAfterMatch);
+
+      const addCollectFromKinds = (kinds: CandyKind[]) => {
+        if (playModeRef.current !== 'level' || kinds.length === 0) {
+          return;
+        }
+        setCollectProgress((prev) => {
+          const next = { ...prev };
+          kinds.forEach((kind) => {
+            next[kind] = (next[kind] ?? 0) + 1;
+          });
+          return next;
+        });
+      };
+
+      const showMatchFeedback = (scoreGain: number, rowBonus: boolean) => {
+        if (matchFeedbackTimerRef.current) {
+          clearTimeout(matchFeedbackTimerRef.current);
+        }
+        const id = Date.now();
+        setMatchFeedback({ id, score: scoreGain, rowBonus });
+        matchFeedbackTimerRef.current = setTimeout(() => {
+          setMatchFeedback(null);
+          matchFeedbackTimerRef.current = null;
+        }, 900);
+      };
 
       const spawnNextPiece = (settledBoard: Board) => {
         setTimeout(() => {
@@ -213,9 +270,11 @@ export function useHexaGame({
 
           setPiece(spawned);
           pieceRef.current = spawned;
+          holdUsedRef.current = false;
+          setHoldUsed(false);
           isResolvingRef.current = false;
           setIsResolving(false);
-        }, SPAWN_AFTER_MATCH_MS);
+        }, spawnDelayMs);
       };
 
       const finishResolution = (settledBoard: Board) => {
@@ -255,6 +314,11 @@ export function useHexaGame({
         }
 
         const step = steps[stepIndex];
+        if (stepIndex === 0) {
+          showMatchFeedback(step.scoreGain, step.hadRowBonus);
+        }
+        addCollectFromKinds(step.clearedKinds);
+
         setBoard(step.boardBeforeClear);
         boardRef.current = step.boardBeforeClear;
         setMatchedKeys(step.matchedKeys);
@@ -267,13 +331,13 @@ export function useHexaGame({
           setBoard(afterStep);
           boardRef.current = afterStep;
           stepIndex += 1;
-          setTimeout(runStep, MATCH_CHAIN_GAP_MS);
+          setTimeout(runStep, chainGapMs);
         }, matchClearMs);
       };
 
       runStep();
     },
-    [applyScore, onLineMatched, onPieceLocked, onRunEnd, queueHighScoreIfNeeded, spawnPiece],
+    [applyScore, onLineMatched, onPieceLocked, onRunEnd, paceScale, queueHighScoreIfNeeded, spawnPiece],
   );
 
   const applySnapshot = useCallback((snapshot: SavedGameSnapshot) => {
@@ -297,6 +361,12 @@ export function useHexaGame({
     setIsResolving(false);
     setStageClearFlash(false);
     setMatchedKeys([]);
+    setHeldGems(snapshot.heldGems ?? null);
+    heldGemsRef.current = snapshot.heldGems ?? null;
+    const savedHoldUsed = snapshot.holdUsed ?? false;
+    holdUsedRef.current = savedHoldUsed;
+    setHoldUsed(savedHoldUsed);
+    setCollectProgress(snapshot.collectProgress ?? {});
   }, []);
 
   const restart = useCallback(() => {
@@ -327,6 +397,12 @@ export function useHexaGame({
     setStageClearFlash(false);
     setMatchedKeys([]);
     setPendingHighScore(null);
+    setHeldGems(null);
+    heldGemsRef.current = null;
+    holdUsedRef.current = false;
+    setHoldUsed(false);
+    setCollectProgress({});
+    setMatchFeedback(null);
 
     void clearGameSave();
 
@@ -359,11 +435,11 @@ export function useHexaGame({
   }, [playMode, restart]);
 
   const exportSnapshot = useCallback((): SavedGameSnapshot | null => {
-    if (gameOverRef.current || isResolvingRef.current) {
+    if (gameOverRef.current) {
       return null;
     }
     return {
-      version: 1,
+      version: 2,
       playMode: playModeRef.current,
       board: boardRef.current,
       piece: pieceRef.current,
@@ -372,8 +448,11 @@ export function useHexaGame({
       level: levelRef.current,
       combo: comboRef.current,
       savedAt: Date.now(),
+      heldGems: heldGemsRef.current,
+      holdUsed: holdUsedRef.current,
+      collectProgress: collectProgress,
     };
-  }, []);
+  }, [collectProgress]);
 
   const lockCurrentPiece = useCallback(() => {
     const currentBoard = boardRef.current;
@@ -406,12 +485,13 @@ export function useHexaGame({
   }, [lockCurrentPiece]);
 
   useEffect(() => {
+    const scale = gamePaceScale(gamePace);
     const id = setInterval(() => {
       tickDown();
-    }, dropIntervalMs(levelRef.current));
+    }, Math.round(dropIntervalMs(levelRef.current) * scale.dropInterval));
 
     return () => clearInterval(id);
-  }, [level, tickDown]);
+  }, [gamePace, level, tickDown]);
 
   const moveHorizontal = useCallback((delta: number) => {
     if (pausedRef.current || isResolvingRef.current || gameOverRef.current) {
@@ -447,8 +527,53 @@ export function useHexaGame({
     pieceRef.current = rotated;
   }, []);
 
+  const swapHold = useCallback(() => {
+    if (
+      holdUsedRef.current ||
+      pausedRef.current ||
+      isResolvingRef.current ||
+      gameOverRef.current
+    ) {
+      return;
+    }
+    const currentPiece = pieceRef.current;
+    if (!currentPiece) {
+      return;
+    }
+
+    holdUsedRef.current = true;
+    setHoldUsed(true);
+
+    if (!heldGemsRef.current) {
+      const stored = currentPiece.gems;
+      const incoming = nextGemsRef.current;
+      const upcoming = rollTriplet(levelRef.current);
+      const nextPiece: ActivePiece = { ...currentPiece, gems: incoming };
+
+      heldGemsRef.current = stored;
+      setHeldGems(stored);
+      nextGemsRef.current = upcoming;
+      setNextGems(upcoming);
+      pieceRef.current = nextPiece;
+      setPiece(nextPiece);
+      return;
+    }
+
+    const swapGems = heldGemsRef.current;
+    heldGemsRef.current = currentPiece.gems;
+    setHeldGems(currentPiece.gems);
+    const swappedPiece: ActivePiece = { ...currentPiece, gems: swapGems };
+    pieceRef.current = swappedPiece;
+    setPiece(swappedPiece);
+  }, []);
+
   const goalScore =
     playMode === 'level' ? levelGoalScore(Math.min(level, MAX_LEVEL)) : 0;
+
+  const collectGoal =
+    playMode === 'level' ? levelCollectGoal(Math.min(level, MAX_LEVEL)) : null;
+
+  const holdEnabled = !gameOver && !isResolving && !paused && piece !== null && !holdUsed;
 
   const bestScore = Math.max(bestRecord.score, score);
 
@@ -456,6 +581,12 @@ export function useHexaGame({
     board,
     piece,
     nextGems,
+    heldGems,
+    holdEnabled,
+    swapHold,
+    matchFeedback,
+    collectProgress,
+    collectGoal,
     score,
     bestScore,
     bestRecord,
