@@ -34,6 +34,8 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps) {
     setPlayerAvatarId,
     setCareerModeEnabled,
     setPlayMode,
+    setGamePace,
+    setBoardTheme,
   } = useSettings();
   const [avatarGridExpanded, setAvatarGridExpanded] = useState(false);
   const [careerOpen, setCareerOpen] = useState(false);
@@ -117,6 +119,31 @@ export default function SettingsScreen({ onBack }: SettingsScreenProps) {
               ]}
               value={settings.playMode}
               onChange={setPlayMode}
+            />
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{strings.settings.gamePace}</Text>
+            <ChipSelector
+              options={[
+                { value: 'normal' as const, label: strings.settings.gamePaceNormal },
+                { value: 'fast' as const, label: strings.settings.gamePaceFast },
+              ]}
+              value={settings.gamePace}
+              onChange={setGamePace}
+            />
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{strings.settings.boardTheme}</Text>
+            <ChipSelector
+              options={[
+                { value: 'midnight' as const, label: strings.settings.boardThemeMidnight },
+                { value: 'hex' as const, label: strings.settings.boardThemeHex },
+                { value: 'ocean' as const, label: strings.settings.boardThemeOcean },
+              ]}
+              value={settings.boardTheme}
+              onChange={setBoardTheme}
             />
           </View>
 

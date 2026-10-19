@@ -10,6 +10,8 @@ import {
 } from 'react';
 import { resolveAvatarId, type AvatarId } from '../constants/avatars';
 import type { PlayMode } from '../types/game';
+import { type GamePace, isGamePace } from '../constants/gamePace';
+import { type BoardThemeId, isBoardThemeId } from '../theme/boardThemes';
 import {
   clampVolume,
   DEFAULT_SETTINGS,
@@ -35,6 +37,10 @@ function loadSettings(raw: string | null): AppSettings {
     return {
       careerModeEnabled: parsed.careerModeEnabled ?? DEFAULT_SETTINGS.careerModeEnabled,
       playMode,
+      gamePace: isGamePace(parsed.gamePace) ? parsed.gamePace : DEFAULT_SETTINGS.gamePace,
+      boardTheme: isBoardThemeId(parsed.boardTheme)
+        ? parsed.boardTheme
+        : DEFAULT_SETTINGS.boardTheme,
       bgmTrack: isBgmTrack(parsed.bgmTrack) ? parsed.bgmTrack : DEFAULT_SETTINGS.bgmTrack,
       bgmVolume: clampVolume(parsed.bgmVolume ?? DEFAULT_SETTINGS.bgmVolume),
       sfxVolume: clampVolume(parsed.sfxVolume ?? DEFAULT_SETTINGS.sfxVolume),
@@ -55,6 +61,8 @@ interface SettingsContextValue {
   setPlayerAvatarId: (avatarId: AvatarId) => void;
   setCareerModeEnabled: (enabled: boolean) => void;
   setPlayMode: (mode: PlayMode) => void;
+  setGamePace: (pace: GamePace) => void;
+  setBoardTheme: (theme: BoardThemeId) => void;
 }
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
@@ -122,6 +130,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     (playMode: PlayMode) => updateSettings({ playMode }),
     [updateSettings],
   );
+  const setGamePace = useCallback(
+    (gamePace: GamePace) => updateSettings({ gamePace }),
+    [updateSettings],
+  );
+  const setBoardTheme = useCallback(
+    (boardTheme: BoardThemeId) => updateSettings({ boardTheme }),
+    [updateSettings],
+  );
 
   const value = useMemo(
     () => ({
@@ -134,6 +150,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setPlayerAvatarId,
       setCareerModeEnabled,
       setPlayMode,
+      setGamePace,
+      setBoardTheme,
     }),
     [
       settings,
@@ -145,6 +163,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setPlayerAvatarId,
       setCareerModeEnabled,
       setPlayMode,
+      setGamePace,
+      setBoardTheme,
     ],
   );
 

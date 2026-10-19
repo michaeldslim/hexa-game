@@ -2,6 +2,8 @@ import type { AvatarId } from '../constants/avatars';
 import { DEFAULT_PLAYER_AVATAR_ID } from '../constants/avatars';
 import type { PlayMode } from '../types/game';
 import { DEFAULT_PLAY_MODE } from '../constants/game';
+import { type GamePace, isGamePace } from '../constants/gamePace';
+import { type BoardThemeId, isBoardThemeId } from '../theme/boardThemes';
 
 export type BgmTrack = 'BGM1' | 'BGM2' | 'BGM3' | 'BGM4';
 
@@ -26,6 +28,8 @@ export function levelToVolume(level: number): number {
 export interface AppSettings {
   careerModeEnabled: boolean;
   playMode: PlayMode;
+  gamePace: GamePace;
+  boardTheme: BoardThemeId;
   bgmTrack: BgmTrack;
   bgmVolume: number;
   sfxVolume: number;
@@ -35,6 +39,8 @@ export interface AppSettings {
 export const DEFAULT_SETTINGS: AppSettings = {
   careerModeEnabled: true,
   playMode: DEFAULT_PLAY_MODE,
+  gamePace: 'normal',
+  boardTheme: 'midnight',
   bgmTrack: 'BGM1',
   bgmVolume: 5,
   sfxVolume: 5,
