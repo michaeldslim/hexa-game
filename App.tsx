@@ -67,9 +67,11 @@ function AppShell() {
 
   const handlePauseToIntro = useCallback((snapshot: SavedGameSnapshot) => {
     setBgmSuppressed(true);
+    setHasSavedGame(true);
     setScreen('intro');
-    refreshSavedGame();
-    void saveGameSave(snapshot);
+    void saveGameSave(snapshot).then(() => {
+      refreshSavedGame();
+    });
   }, [refreshSavedGame]);
 
   const bgmActive = screen === 'game' && !showSettings && !bgmSuppressed;

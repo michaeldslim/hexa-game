@@ -5,6 +5,8 @@ import { COMBO_POPUP_MS } from '../constants/game';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useGameAudio } from '../audio/GameAudioProvider';
 import GestureBoard from '../components/GestureBoard';
+import MatchFeedbackPop from '../components/MatchFeedbackPop';
+import SideGemSlot from '../components/SideGemSlot';
 import HighScoreInitialsModal from '../components/HighScoreInitialsModal';
 import HighScoreRecordsModal from '../components/HighScoreRecordsModal';
 import PlayerAvatar from '../components/PlayerAvatar';
@@ -72,6 +74,13 @@ export default function GameScreen({
   const {
     board,
     piece,
+    nextGems,
+    heldGems,
+    holdEnabled,
+    swapHold,
+    matchFeedback,
+    collectProgress,
+    collectGoal,
     score,
     bestScore,
     bestRecord,
@@ -95,6 +104,7 @@ export default function GameScreen({
     exportSnapshot,
   } = useHexaGame({
     playMode: initialSave?.playMode ?? settings.playMode,
+    gamePace: settings.gamePace,
     initialSave,
     paused: recordsModalOpen,
     onRunEnd: handleRunEnd,
@@ -154,19 +164,28 @@ export default function GameScreen({
     return String(bestScore);
   }, [bestRecord.initials, bestRecord.score, bestScore, score]);
 
+  const sideSlotWidth = 64;
+
   const cellSize = useMemo(() => {
-    const horizontalPad = 24;
+    const horizontalPad = 16;
     const verticalPad = insets.top + insets.bottom + headerHeight + footerHeight + 16;
-    const availableWidth = windowWidth - horizontalPad;
+    const availableWidth = windowWidth - horizontalPad - sideSlotWidth * 2;
     const availableHeight = Math.max(120, windowHeight - verticalPad);
     const byWidth = Math.floor(availableWidth / BOARD_COLS);
     const byHeight = Math.floor(availableHeight / BOARD_ROWS);
-    return Math.max(24, Math.min(byWidth, byHeight, 52));
+    return Math.max(24, Math.min(byWidth, byHeight, 56));
   }, [footerHeight, headerHeight, insets.bottom, insets.top, windowHeight, windowWidth]);
+
+  const sideGemSize = Math.max(20, Math.min(28, cellSize * 0.42));
 
   const careerBadge = settings.careerModeEnabled
     ? getCareerProgressCopy(strings, careerState).primary
     : null;
+
+  const collectHud =
+    collectGoal && playMode === 'level'
+      ? `${collectProgress[collectGoal.kind] ?? 0}/${collectGoal.required} ${collectGoal.kind}`
+      : null;
 
   const thirdHud =
     playMode === 'level'
@@ -261,6 +280,11 @@ export default function GameScreen({
         </View>
 
         {careerBadge ? <Text style={styles.careerBadge}>{careerBadge}</Text> : null}
+        {collectHud ? (
+          <Text style={styles.collectBadge}>
+            {strings.hud.collect}: {collectHud}
+          </Text>
+        ) : null}
         <View style={styles.statsRow}>
           <StatCard label={strings.hud.score} value={String(score)} />
           <StatCard label={levelHud.label} value={levelHud.value} />
@@ -283,23 +307,41 @@ export default function GameScreen({
       </View>
 
       <View style={styles.boardArea}>
-        <GestureBoard
-          board={board}
-          piece={piece}
-          matchedKeys={matchedKeys}
-          cellSize={cellSize}
-          disabled={gesturesDisabled}
-          onMoveLeft={() => moveHorizontal(-1)}
-          onMoveRight={() => moveHorizontal(1)}
-          onSoftDrop={softDrop}
-          onRotate={rotate}
-        />
+        <View style={styles.boardRow}>
+          <SideGemSlot
+            label={strings.hud.hold}
+            gems={heldGems}
+            gemSize={sideGemSize}
+            onPress={swapHold}
+            pressEnabled={holdEnabled}
+          />
+          <GestureBoard
+            board={board}
+            piece={piece}
+            matchedKeys={matchedKeys}
+            cellSize={cellSize}
+            boardThemeId={settings.boardTheme}
+            disabled={gesturesDisabled}
+            onMoveLeft={() => moveHorizontal(-1)}
+            onMoveRight={() => moveHorizontal(1)}
+            onSoftDrop={softDrop}
+            onRotate={rotate}
+          />
+          <SideGemSlot label={strings.hud.next} gems={nextGems} gemSize={sideGemSize} />
+        </View>
 
         {stageClearFlash ? (
           <View style={styles.stageFlash} pointerEvents="none">
             <Text style={styles.stageFlashText}>{strings.stageClear}</Text>
           </View>
         ) : null}
+
+        <MatchFeedbackPop
+          feedback={matchFeedback}
+          goodLabel={strings.matchFeedback.good}
+          rowBonusLabel={strings.matchFeedback.rowBonus}
+          durationMs={900}
+        />
 
         {comboDisplay !== null ? (
           <Animated.View
@@ -467,6 +509,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 4,
   },
+  collectBadge: {
+    color: '#ffd166',
+    fontSize: 12,
+    fontWeight: '700',
+    paddingHorizontal: 16,
+    marginBottom: 2,
+  },
   statsRow: {
     flexDirection: 'row',
     gap: 8,
@@ -510,7 +559,13 @@ const styles = StyleSheet.create({
     minHeight: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
+    overflow: 'visible',
+  },
+  boardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
   gestureHint: {
     color: '#8d99ae',
