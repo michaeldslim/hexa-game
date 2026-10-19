@@ -49,12 +49,20 @@ First Android build: EAS will prompt to create a **keystore** (or upload your ow
 - **Level mode** — reach cumulative score targets through level 5 to win.
 - **Endless mode** — survive for high score; no stage win.
 - **Career mode** — same promotion ladder as Candy Break (level 5 clear = 1 win).
+- **Game pace** — Normal / Fast (drop speed and match animation timing).
 
 ## Controls
 
-On-screen: move left/right, soft drop, rotate (order only, no extra gravity step).
+Swipe: move / soft drop · Tap falling piece: rotate · **Hold** box: swap with current piece **once per drop**.
 
-Board: **8×14** playable cells; spawn uses two hidden rows above (`row -2`).
+Board: **6×12** playable cells; **Hold** (left) and **Next** (right) beside the grid.
+
+## Gameplay extras
+
+- **Next / Hold** preview above the board.
+- **First match** in a chain: “Good!” + score pop; **2+ cascades**: combo callout.
+- **4+ in a line**: bonus **full-row clear** (★).
+- **Level mode**: fewer colors at low tiers; levels 2–5 add **color collect** side goals.
 
 ## EAS (Expo Application Services)
 
