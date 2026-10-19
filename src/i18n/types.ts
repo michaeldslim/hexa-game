@@ -22,6 +22,13 @@ export interface IStrings {
     /** Endless: drop-speed tier from score (1–5). */
     difficulty: string;
     records: string;
+    next: string;
+    hold: string;
+    collect: string;
+  };
+  matchFeedback: {
+    good: string;
+    rowBonus: string;
   };
   controls: {
     left: string;
@@ -36,6 +43,13 @@ export interface IStrings {
     playMode: string;
     modeEndless: string;
     modeLevel: string;
+    gamePace: string;
+    gamePaceNormal: string;
+    gamePaceFast: string;
+    boardTheme: string;
+    boardThemeMidnight: string;
+    boardThemeHex: string;
+    boardThemeOcean: string;
     careerMode: string;
     careerDesc: string;
     careerScreen: string;
