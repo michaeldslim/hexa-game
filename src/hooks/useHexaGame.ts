@@ -4,6 +4,7 @@ import {
   MATCH_POP_MS,
   MATCH_SPARKLE_MS,
   MAX_LEVEL,
+  OBSTACLE_SPAWN_ROLLS,
   SPAWN_AFTER_MATCH_MS,
   dropIntervalMs,
   isRunWon,
@@ -34,8 +35,10 @@ import {
   createEmptyBoard,
   defaultSpawn,
   lockPiece,
+  maybeSpawnObstaclesWhileFalling,
   resolveBoardWithSteps,
   rollTriplet,
+  seedInitialObstacles,
   tryMoveDown,
   tryMoveHorizontal,
   tryRotate,
@@ -258,6 +261,18 @@ export function useHexaGame({
           nextGemsRef.current = upcoming;
 
           const spawned = spawnPiece(spawnBoard, incoming);
+          if (spawned) {
+            const withStones = maybeSpawnObstaclesWhileFalling(
+              spawnBoard,
+              spawned,
+              levelRef.current,
+              OBSTACLE_SPAWN_ROLLS,
+            );
+            if (withStones !== spawnBoard) {
+              setBoard(withStones);
+              boardRef.current = withStones;
+            }
+          }
           if (!spawned) {
             gameOverRef.current = true;
             setGameOver(true);
@@ -378,12 +393,16 @@ export function useHexaGame({
   }, []);
 
   const restart = useCallback(() => {
-    const empty = createEmptyBoard();
+    const empty = seedInitialObstacles(createEmptyBoard());
     const firstNext = rollTriplet(1);
     const firstGems = rollTriplet(1);
     const spawned = defaultSpawn(empty, firstGems);
+    const startBoard =
+      spawned !== null
+        ? maybeSpawnObstaclesWhileFalling(empty, spawned, 1, OBSTACLE_SPAWN_ROLLS)
+        : empty;
 
-    boardRef.current = empty;
+    boardRef.current = startBoard;
     pieceRef.current = spawned;
     nextGemsRef.current = firstNext;
     levelRef.current = 1;
@@ -392,7 +411,7 @@ export function useHexaGame({
     scoreRef.current = 0;
     comboRef.current = 0;
 
-    setBoard(empty);
+    setBoard(startBoard);
     setPiece(spawned);
     setNextGems(firstNext);
     setScore(0);
@@ -488,6 +507,18 @@ export function useHexaGame({
       lockCurrentPiece();
       return;
     }
+
+    const withStones = maybeSpawnObstaclesWhileFalling(
+      currentBoard,
+      moved,
+      levelRef.current,
+      1,
+    );
+    if (withStones !== currentBoard) {
+      setBoard(withStones);
+      boardRef.current = withStones;
+    }
+
     setPiece(moved);
     pieceRef.current = moved;
   }, [lockCurrentPiece]);
