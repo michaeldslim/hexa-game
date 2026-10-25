@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   MATCH_CHAIN_GAP_MS,
   MATCH_POP_MS,
   MATCH_SPARKLE_MS,
   MAX_LEVEL,
   OBSTACLE_SPAWN_ROLLS,
+  STONE_EXPIRY_TICK_MS,
   SPAWN_AFTER_MATCH_MS,
   dropIntervalMs,
   isRunWon,
@@ -19,6 +20,12 @@ import {
   type ScoreRecordEntry,
 } from '../game/scoreRecordsStorage';
 import { clearGameSave } from '../game/gameSaveStorage';
+import {
+  enqueueNewStones,
+  expireStonesDue,
+  pruneStoneTimers,
+  stoneTimersForBoard,
+} from '../game/stoneLifetimes';
 import type {
   ActivePiece,
   Board,
@@ -128,6 +135,22 @@ export function useHexaGame({
   const [holdUsed, setHoldUsed] = useState(() => initialSave?.holdUsed ?? false);
   const holdUsedRef = useRef(holdUsed);
   const matchFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stoneQueueRef = useRef(
+    initialSave?.stoneTimers?.length
+      ? pruneStoneTimers(initialSave.stoneTimers, initialSave.board)
+      : stoneTimersForBoard(initialSave?.board ?? createEmptyBoard()),
+  );
+  const [stoneClock, setStoneClock] = useState(0);
+
+  const applyBoardWithStoneTracking = useCallback((prev: Board, next: Board) => {
+    if (next === prev) {
+      return;
+    }
+    stoneQueueRef.current = enqueueNewStones(prev, next, stoneQueueRef.current);
+    boardRef.current = next;
+    setBoard(next);
+    setStoneClock(Date.now());
+  }, []);
 
   boardRef.current = board;
   pieceRef.current = piece;
@@ -145,6 +168,28 @@ export function useHexaGame({
   pausedRef.current = paused;
 
   const paceScale = useCallback(() => gamePaceScale(gamePaceRef.current), []);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (gameOverRef.current) {
+        return;
+      }
+      const now = Date.now();
+      const { board: nextBoard, queue, removed } = expireStonesDue(
+        boardRef.current,
+        stoneQueueRef.current,
+        now,
+      );
+      stoneQueueRef.current = queue;
+      if (removed) {
+        boardRef.current = nextBoard;
+        setBoard(nextBoard);
+      }
+      setStoneClock(now);
+    }, STONE_EXPIRY_TICK_MS);
+
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     void loadBestScoreRecord().then((record) => {
@@ -248,10 +293,7 @@ export function useHexaGame({
 
       const spawnNextPiece = (settledBoard: Board) => {
         const boardForSpawn = boardAfterLockSettle(settledBoard, levelRef.current);
-        if (boardForSpawn !== settledBoard) {
-          setBoard(boardForSpawn);
-          boardRef.current = boardForSpawn;
-        }
+        applyBoardWithStoneTracking(settledBoard, boardForSpawn);
 
         setTimeout(() => {
           const spawnBoard = boardRef.current;
@@ -268,10 +310,7 @@ export function useHexaGame({
               levelRef.current,
               OBSTACLE_SPAWN_ROLLS,
             );
-            if (withStones !== spawnBoard) {
-              setBoard(withStones);
-              boardRef.current = withStones;
-            }
+            applyBoardWithStoneTracking(spawnBoard, withStones);
           }
           if (!spawned) {
             gameOverRef.current = true;
@@ -360,7 +399,16 @@ export function useHexaGame({
 
       runStep();
     },
-    [applyScore, onLineMatched, onPieceLocked, onRunEnd, paceScale, queueHighScoreIfNeeded, spawnPiece],
+    [
+      applyBoardWithStoneTracking,
+      applyScore,
+      onLineMatched,
+      onPieceLocked,
+      onRunEnd,
+      paceScale,
+      queueHighScoreIfNeeded,
+      spawnPiece,
+    ],
   );
 
   const applySnapshot = useCallback((snapshot: SavedGameSnapshot) => {
@@ -390,17 +438,32 @@ export function useHexaGame({
     holdUsedRef.current = savedHoldUsed;
     setHoldUsed(savedHoldUsed);
     setCollectProgress(snapshot.collectProgress ?? {});
+    stoneQueueRef.current = snapshot.stoneTimers?.length
+      ? pruneStoneTimers(snapshot.stoneTimers, snapshot.board)
+      : stoneTimersForBoard(snapshot.board);
+    setStoneClock(Date.now());
   }, []);
 
   const restart = useCallback(() => {
-    const empty = seedInitialObstacles(createEmptyBoard());
+    stoneQueueRef.current = [];
+    const blank = createEmptyBoard();
+    let working = seedInitialObstacles(blank);
+    applyBoardWithStoneTracking(blank, working);
+
     const firstNext = rollTriplet(1);
     const firstGems = rollTriplet(1);
-    const spawned = defaultSpawn(empty, firstGems);
-    const startBoard =
-      spawned !== null
-        ? maybeSpawnObstaclesWhileFalling(empty, spawned, 1, OBSTACLE_SPAWN_ROLLS)
-        : empty;
+    const spawned = defaultSpawn(working, firstGems);
+    if (spawned !== null) {
+      const withStones = maybeSpawnObstaclesWhileFalling(
+        working,
+        spawned,
+        1,
+        OBSTACLE_SPAWN_ROLLS,
+      );
+      applyBoardWithStoneTracking(working, withStones);
+      working = boardRef.current;
+    }
+    const startBoard = boardRef.current;
 
     boardRef.current = startBoard;
     pieceRef.current = spawned;
@@ -430,13 +493,14 @@ export function useHexaGame({
     setHoldUsed(false);
     setCollectProgress({});
     setMatchFeedback(null);
+    setStoneClock(Date.now());
 
     void clearGameSave();
 
     if (!spawned) {
       setGameOver(true);
     }
-  }, []);
+  }, [applyBoardWithStoneTracking]);
 
   const skipPlayModeRestartRef = useRef(!!initialSave);
   const mountedRef = useRef(false);
@@ -478,6 +542,7 @@ export function useHexaGame({
       heldGems: heldGemsRef.current,
       holdUsed: holdUsedRef.current,
       collectProgress: collectProgress,
+      stoneTimers: stoneQueueRef.current,
     };
   }, [collectProgress]);
 
@@ -514,14 +579,11 @@ export function useHexaGame({
       levelRef.current,
       1,
     );
-    if (withStones !== currentBoard) {
-      setBoard(withStones);
-      boardRef.current = withStones;
-    }
+    applyBoardWithStoneTracking(currentBoard, withStones);
 
     setPiece(moved);
     pieceRef.current = moved;
-  }, [lockCurrentPiece]);
+  }, [applyBoardWithStoneTracking, lockCurrentPiece]);
 
   useEffect(() => {
     const scale = gamePaceScale(gamePace);
@@ -616,8 +678,20 @@ export function useHexaGame({
 
   const bestScore = Math.max(bestRecord.score, score);
 
+  const stoneExpiresAt = useMemo(() => {
+    const map: Record<string, number> = {};
+    stoneQueueRef.current.forEach(({ row, col, expiresAt }) => {
+      if (board[row]?.[col] === 'Stone') {
+        map[`${row}:${col}`] = expiresAt;
+      }
+    });
+    return map;
+  }, [board, stoneClock]);
+
   return {
     board,
+    stoneExpiresAt,
+    stoneClock,
     piece,
     nextGems,
     heldGems,
