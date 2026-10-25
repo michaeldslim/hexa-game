@@ -4,8 +4,12 @@ import {
   MIN_MATCH,
   OBSTACLE_BASE_CHANCE,
   OBSTACLE_CHANCE_PER_LEVEL,
+  OBSTACLE_FALL_TICK_CHANCE,
+  OBSTACLE_INITIAL_COUNT,
   OBSTACLE_MAX_ON_BOARD,
   OBSTACLE_MIN_ROW,
+  OBSTACLE_MIN_ROW_FALL,
+  OBSTACLE_SPAWN_ROLLS,
   ROW_MATCH_BONUS_MIN,
   SCORE_CHAIN_BONUS,
   SCORE_PER_TILE,
@@ -46,19 +50,48 @@ export function obstacleSpawnChance(level: number): number {
   return OBSTACLE_BASE_CHANCE + (level - 1) * OBSTACLE_CHANCE_PER_LEVEL;
 }
 
-/** Maybe place one stone in a random empty mid-board cell. */
-export function maybeSpawnObstacle(board: Board, level: number): Board {
+export type ObstacleSpawnOptions = {
+  minRow?: number;
+  chance?: number;
+  /** Cell keys `${row}:${col}` that must stay empty (e.g. falling piece). */
+  excludeKeys?: ReadonlySet<string>;
+};
+
+function pieceOccupiedKeys(piece: ActivePiece | null): Set<string> {
+  const keys = new Set<string>();
+  if (!piece) {
+    return keys;
+  }
+  for (const { row, col } of pieceCells(piece)) {
+    if (row >= 0 && row < BOARD_ROWS && col >= 0 && col < BOARD_COLS) {
+      keys.add(`${row}:${col}`);
+    }
+  }
+  return keys;
+}
+
+/** Maybe place one stone in a random empty cell. */
+export function maybeSpawnObstacle(
+  board: Board,
+  level: number,
+  options: ObstacleSpawnOptions = {},
+): Board {
   if (countStones(board) >= OBSTACLE_MAX_ON_BOARD) {
     return board;
   }
-  if (Math.random() >= obstacleSpawnChance(level)) {
+  const chance = options.chance ?? obstacleSpawnChance(level);
+  if (Math.random() >= chance) {
     return board;
   }
 
+  const minRow = options.minRow ?? OBSTACLE_MIN_ROW;
+  const exclude = options.excludeKeys ?? new Set<string>();
+
   const candidates: { row: number; col: number }[] = [];
-  for (let row = OBSTACLE_MIN_ROW; row < BOARD_ROWS; row += 1) {
+  for (let row = minRow; row < BOARD_ROWS; row += 1) {
     for (let col = 0; col < BOARD_COLS; col += 1) {
-      if (board[row][col] === null) {
+      const key = `${row}:${col}`;
+      if (board[row][col] === null && !exclude.has(key)) {
         candidates.push({ row, col });
       }
     }
@@ -72,6 +105,39 @@ export function maybeSpawnObstacle(board: Board, level: number): Board {
   const next = board.map((row) => [...row]);
   next[pick.row][pick.col] = 'Stone';
   return next;
+}
+
+export function maybeSpawnObstaclesWhileFalling(
+  board: Board,
+  piece: ActivePiece | null,
+  level: number,
+  rolls = 1,
+): Board {
+  const excludeKeys = pieceOccupiedKeys(piece);
+  let next = board;
+  for (let i = 0; i < rolls; i += 1) {
+    next = maybeSpawnObstacle(next, level, {
+      minRow: OBSTACLE_MIN_ROW_FALL,
+      chance: OBSTACLE_FALL_TICK_CHANCE,
+      excludeKeys,
+    });
+  }
+  return next;
+}
+
+export function seedInitialObstacles(board: Board): Board {
+  let next = board;
+  for (let i = 0; i < OBSTACLE_INITIAL_COUNT; i += 1) {
+    next = maybeSpawnObstacle(next, 1, {
+      minRow: OBSTACLE_MIN_ROW_FALL + 1,
+      chance: 1,
+    });
+  }
+  return next;
+}
+
+export function boardAfterLockSettle(board: Board, level: number): Board {
+  return maybeSpawnObstacle(board, level, { minRow: OBSTACLE_MIN_ROW });
 }
 
 const LINE_DIRS: [number, number][] = [
@@ -118,10 +184,6 @@ export function canPlacePiece(board: Board, piece: ActivePiece): boolean {
     }
   }
   return true;
-}
-
-export function boardAfterLockSettle(board: Board, level: number): Board {
-  return maybeSpawnObstacle(board, level);
 }
 
 export function createSpawnPiece(col: number, row: number, gems: Triplet): ActivePiece {
