@@ -5,6 +5,8 @@ import { boardThemes, cellFill, type BoardThemeId } from '../theme/boardThemes';
 import type { ActivePiece, Board } from '../types/game';
 import { cellAt, pieceCells } from '../utils/hexaEngine';
 import CandyGem from './CandyGem';
+import StoneGem from './StoneGem';
+import { isCandyCell } from '../utils/hexaEngine';
 import MatchClearCandy from './MatchClearCandy';
 
 const SWIPE_THRESHOLD = 24;
@@ -160,7 +162,7 @@ export default function GestureBoard({
           <View key={`r-${row}`} style={styles.gridRow} pointerEvents="box-none">
             {Array.from({ length: BOARD_COLS }, (_, col) => {
               const cellKey = `${row}:${col}`;
-              const kind = cellAt(board, row, col, piece);
+              const cell = cellAt(board, row, col, piece);
               const isActive = activeKeys.has(cellKey);
               const isMatching = matchedKeySet.has(cellKey);
 
@@ -187,9 +189,11 @@ export default function GestureBoard({
                       ]}
                     />
                   ) : null}
-                  {kind ? (
+                  {cell === 'Stone' ? (
+                    <StoneGem size={cellSize * 0.94} />
+                  ) : isCandyCell(cell) ? (
                     isMatching ? (
-                      <MatchClearCandy kind={kind} size={cellSize * 0.94} />
+                      <MatchClearCandy kind={cell} size={cellSize * 0.94} />
                     ) : isActive ? (
                       <Pressable
                         onPress={handleRotatePress}
@@ -197,10 +201,10 @@ export default function GestureBoard({
                         hitSlop={6}
                         style={styles.gemPressable}
                       >
-                        <CandyGem kind={kind} size={cellSize * 0.94} active />
+                        <CandyGem kind={cell} size={cellSize * 0.94} active />
                       </Pressable>
                     ) : (
-                      <CandyGem kind={kind} size={cellSize * 0.94} />
+                      <CandyGem kind={cell} size={cellSize * 0.94} />
                     )
                   ) : null}
                 </View>
