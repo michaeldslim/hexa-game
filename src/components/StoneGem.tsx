@@ -1,12 +1,24 @@
 import { StyleSheet, View } from 'react-native';
+import { STONE_LIFETIME_MS } from '../constants/game';
 
 type StoneGemProps = {
   size: number;
+  expiresAt?: number;
+  clock?: number;
 };
 
-export default function StoneGem({ size }: StoneGemProps) {
+export default function StoneGem({ size, expiresAt, clock = 0 }: StoneGemProps) {
   const radius = Math.max(6, size * 0.16);
   const inner = size * 0.82;
+  const remaining =
+    expiresAt !== undefined ? Math.max(0, expiresAt - (clock || Date.now())) : STONE_LIFETIME_MS;
+  const fadeWindowMs = 2000;
+  const opacity =
+    expiresAt === undefined
+      ? 1
+      : remaining <= fadeWindowMs
+        ? 0.35 + (remaining / fadeWindowMs) * 0.65
+        : 1;
 
   return (
     <View
@@ -16,6 +28,7 @@ export default function StoneGem({ size }: StoneGemProps) {
           width: size,
           height: size,
           borderRadius: radius,
+          opacity,
         },
       ]}
     >

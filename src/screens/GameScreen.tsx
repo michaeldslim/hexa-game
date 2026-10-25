@@ -102,6 +102,8 @@ export default function GameScreen({
     rotate,
     restart,
     exportSnapshot,
+    stoneExpiresAt,
+    stoneClock,
   } = useHexaGame({
     playMode: initialSave?.playMode ?? settings.playMode,
     gamePace: settings.gamePace,
@@ -321,6 +323,8 @@ export default function GameScreen({
             matchedKeys={matchedKeys}
             cellSize={cellSize}
             boardThemeId={settings.boardTheme}
+            stoneExpiresAt={stoneExpiresAt}
+            stoneClock={stoneClock}
             disabled={gesturesDisabled}
             onMoveLeft={() => moveHorizontal(-1)}
             onMoveRight={() => moveHorizontal(1)}
