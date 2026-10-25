@@ -23,6 +23,9 @@ export const OBSTACLE_CHANCE_PER_LEVEL = 0.012;
 export const OBSTACLE_FALL_TICK_CHANCE = 0.03;
 export const OBSTACLE_SPAWN_ROLLS = 1;
 export const OBSTACLE_INITIAL_COUNT = 0;
+/** Temporary stones disappear FIFO after this lifetime (ms). */
+export const STONE_LIFETIME_MS = 10_000;
+export const STONE_EXPIRY_TICK_MS = 250;
 
 export const MIN_MATCH = 3;
 export const MAX_LEVEL = 5;

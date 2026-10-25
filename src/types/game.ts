@@ -25,6 +25,12 @@ export interface MatchResolution {
   hadMatch: boolean;
 }
 
+export type StoneTimer = {
+  row: number;
+  col: number;
+  expiresAt: number;
+};
+
 export interface SavedGameSnapshot {
   version: 1 | 2;
   playMode: PlayMode;
@@ -38,6 +44,7 @@ export interface SavedGameSnapshot {
   heldGems?: Triplet | null;
   holdUsed?: boolean;
   collectProgress?: Partial<Record<CandyKind, number>>;
+  stoneTimers?: StoneTimer[];
 }
 
 export type MatchFeedback = {
