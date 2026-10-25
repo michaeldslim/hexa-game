@@ -1,8 +1,13 @@
 export type CandyKind = 'Red' | 'Blue' | 'Gold' | 'Mint';
 
+/** Fixed obstacle; does not match or fall. */
+export type StoneCell = 'Stone';
+
+export type BoardCell = CandyKind | StoneCell | null;
+
 export type PlayMode = 'endless' | 'level';
 
-export type Board = (CandyKind | null)[][];
+export type Board = BoardCell[][];
 
 export type Triplet = [CandyKind, CandyKind, CandyKind];
 

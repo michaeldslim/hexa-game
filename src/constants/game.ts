@@ -12,6 +12,12 @@ export const SPAWN_ROW = 0;
 /** 4+ in a line also clears that entire row (Star Line bonus). */
 export const ROW_MATCH_BONUS_MIN = 4;
 
+/** Random stone obstacles (mid-board and below). */
+export const OBSTACLE_MIN_ROW = 4;
+export const OBSTACLE_MAX_ON_BOARD = 9;
+export const OBSTACLE_BASE_CHANCE = 0.14;
+export const OBSTACLE_CHANCE_PER_LEVEL = 0.025;
+
 export const MIN_MATCH = 3;
 export const MAX_LEVEL = 5;
 
