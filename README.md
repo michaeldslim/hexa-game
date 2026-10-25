@@ -63,6 +63,7 @@ Board: **6×12** playable cells; **Hold** (left) and **Next** (right) beside the
 - **First match** in a chain: “Good!” + score pop; **2+ cascades**: combo callout.
 - **4+ in a line**: bonus **full-row clear** (★).
 - **Level mode**: fewer colors at low tiers; levels 2–5 add **color collect** side goals.
+- **Stone obstacles**: after each drop, a random **stone** may appear in the mid-board (fixed, no match); gems stack around it.
 
 ## EAS (Expo Application Services)
 
