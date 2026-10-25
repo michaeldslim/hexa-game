@@ -16,13 +16,13 @@ export const ROW_MATCH_BONUS_MIN = 4;
 export const OBSTACLE_MIN_ROW = 4;
 /** While a piece is falling, stones may appear from this row up. */
 export const OBSTACLE_MIN_ROW_FALL = 1;
-export const OBSTACLE_MAX_ON_BOARD = 9;
-export const OBSTACLE_BASE_CHANCE = 0.14;
-export const OBSTACLE_CHANCE_PER_LEVEL = 0.025;
+export const OBSTACLE_MAX_ON_BOARD = 5;
+export const OBSTACLE_BASE_CHANCE = 0.07;
+export const OBSTACLE_CHANCE_PER_LEVEL = 0.012;
 /** Per gravity tick while a piece is active. */
-export const OBSTACLE_FALL_TICK_CHANCE = 0.09;
-export const OBSTACLE_SPAWN_ROLLS = 2;
-export const OBSTACLE_INITIAL_COUNT = 2;
+export const OBSTACLE_FALL_TICK_CHANCE = 0.03;
+export const OBSTACLE_SPAWN_ROLLS = 1;
+export const OBSTACLE_INITIAL_COUNT = 0;
 
 export const MIN_MATCH = 3;
 export const MAX_LEVEL = 5;
