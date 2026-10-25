@@ -29,6 +29,7 @@ import type {
 } from '../types/game';
 import {
   applyGravity,
+  boardAfterLockSettle,
   clearMatches,
   createEmptyBoard,
   defaultSpawn,
@@ -243,13 +244,20 @@ export function useHexaGame({
       };
 
       const spawnNextPiece = (settledBoard: Board) => {
+        const boardForSpawn = boardAfterLockSettle(settledBoard, levelRef.current);
+        if (boardForSpawn !== settledBoard) {
+          setBoard(boardForSpawn);
+          boardRef.current = boardForSpawn;
+        }
+
         setTimeout(() => {
+          const spawnBoard = boardRef.current;
           const incoming = nextGemsRef.current;
           const upcoming = rollTriplet(levelRef.current);
           setNextGems(upcoming);
           nextGemsRef.current = upcoming;
 
-          const spawned = spawnPiece(settledBoard, incoming);
+          const spawned = spawnPiece(spawnBoard, incoming);
           if (!spawned) {
             gameOverRef.current = true;
             setGameOver(true);
