@@ -1,6 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BOARD_COLS, BOARD_ROWS, SAVED_GAME_KEY } from '../constants/game';
-import type { SavedGameSnapshot } from '../types/game';
+import { BOARD_COLS, BOARD_ROWS, CANDY_KINDS, SAVED_GAME_KEY } from '../constants/game';
+import type { BoardCell, SavedGameSnapshot } from '../types/game';
+
+function isValidBoardCell(cell: unknown): cell is BoardCell {
+  return cell === null || cell === 'Stone' || CANDY_KINDS.includes(cell as (typeof CANDY_KINDS)[number]);
+}
 
 function isValidSnapshot(value: unknown): value is SavedGameSnapshot {
   if (!value || typeof value !== 'object') {
@@ -12,7 +16,10 @@ function isValidSnapshot(value: unknown): value is SavedGameSnapshot {
     Array.isArray(snap.board) &&
     snap.board.length === BOARD_ROWS &&
     snap.board.every(
-      (row) => Array.isArray(row) && row.length === BOARD_COLS,
+      (row) =>
+        Array.isArray(row) &&
+        row.length === BOARD_COLS &&
+        row.every((cell) => isValidBoardCell(cell)),
     );
   return (
     versionOk &&
