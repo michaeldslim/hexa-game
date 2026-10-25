@@ -2,6 +2,10 @@ import {
   BOARD_COLS,
   BOARD_ROWS,
   MIN_MATCH,
+  OBSTACLE_BASE_CHANCE,
+  OBSTACLE_CHANCE_PER_LEVEL,
+  OBSTACLE_MAX_ON_BOARD,
+  OBSTACLE_MIN_ROW,
   ROW_MATCH_BONUS_MIN,
   SCORE_CHAIN_BONUS,
   SCORE_PER_TILE,
@@ -9,7 +13,66 @@ import {
   SPAWN_COLUMN_INDICES,
   SPAWN_ROW,
 } from '../constants/game';
-import type { ActivePiece, Board, CandyKind, MatchResolution, Triplet } from '../types/game';
+import type {
+  ActivePiece,
+  Board,
+  BoardCell,
+  CandyKind,
+  MatchResolution,
+  Triplet,
+} from '../types/game';
+
+export function isCandyCell(cell: BoardCell): cell is CandyKind {
+  return cell !== null && cell !== 'Stone';
+}
+
+export function isStoneCell(cell: BoardCell): boolean {
+  return cell === 'Stone';
+}
+
+function countStones(board: Board): number {
+  let n = 0;
+  for (let row = 0; row < BOARD_ROWS; row += 1) {
+    for (let col = 0; col < BOARD_COLS; col += 1) {
+      if (board[row][col] === 'Stone') {
+        n += 1;
+      }
+    }
+  }
+  return n;
+}
+
+export function obstacleSpawnChance(level: number): number {
+  return OBSTACLE_BASE_CHANCE + (level - 1) * OBSTACLE_CHANCE_PER_LEVEL;
+}
+
+/** Maybe place one stone in a random empty mid-board cell. */
+export function maybeSpawnObstacle(board: Board, level: number): Board {
+  if (countStones(board) >= OBSTACLE_MAX_ON_BOARD) {
+    return board;
+  }
+  if (Math.random() >= obstacleSpawnChance(level)) {
+    return board;
+  }
+
+  const candidates: { row: number; col: number }[] = [];
+  for (let row = OBSTACLE_MIN_ROW; row < BOARD_ROWS; row += 1) {
+    for (let col = 0; col < BOARD_COLS; col += 1) {
+      if (board[row][col] === null) {
+        candidates.push({ row, col });
+      }
+    }
+  }
+
+  if (candidates.length === 0) {
+    return board;
+  }
+
+  const pick = candidates[Math.floor(Math.random() * candidates.length)]!;
+  const next = board.map((row) => [...row]);
+  next[pick.row][pick.col] = 'Stone';
+  return next;
+}
 
 const LINE_DIRS: [number, number][] = [
   [0, 1],
@@ -55,6 +118,10 @@ export function canPlacePiece(board: Board, piece: ActivePiece): boolean {
     }
   }
   return true;
+}
+
+export function boardAfterLockSettle(board: Board, level: number): Board {
+  return maybeSpawnObstacle(board, level);
 }
 
 export function createSpawnPiece(col: number, row: number, gems: Triplet): ActivePiece {
@@ -111,7 +178,7 @@ export function findMatchKeys(board: Board): Set<string> {
     for (let row = 0; row < BOARD_ROWS; row += 1) {
       for (let col = 0; col < BOARD_COLS; col += 1) {
         const kind = board[row][col];
-        if (!kind) {
+        if (!isCandyCell(kind)) {
           continue;
         }
 
@@ -164,15 +231,27 @@ export function applyGravity(board: Board): Board {
   const next = createEmptyBoard();
 
   for (let col = 0; col < BOARD_COLS; col += 1) {
-    const stack: CandyKind[] = [];
-    for (let row = BOARD_ROWS - 1; row >= 0; row -= 1) {
-      const cell = board[row][col];
-      if (cell) {
-        stack.push(cell);
+    for (let row = 0; row < BOARD_ROWS; row += 1) {
+      if (board[row][col] === 'Stone') {
+        next[row][col] = 'Stone';
       }
     }
-    for (let i = 0; i < stack.length; i += 1) {
-      next[BOARD_ROWS - 1 - i][col] = stack[i];
+
+    const gems: CandyKind[] = [];
+    for (let row = BOARD_ROWS - 1; row >= 0; row -= 1) {
+      const cell = board[row][col];
+      if (isCandyCell(cell)) {
+        gems.push(cell);
+      }
+    }
+
+    let gemIdx = 0;
+    for (let row = BOARD_ROWS - 1; row >= 0 && gemIdx < gems.length; row -= 1) {
+      if (next[row][col] === 'Stone') {
+        continue;
+      }
+      next[row][col] = gems[gemIdx];
+      gemIdx += 1;
     }
   }
 
@@ -205,7 +284,7 @@ function keysToKinds(board: Board, keys: Set<string>): CandyKind[] {
     const row = Number(rowStr);
     const col = Number(colStr);
     const kind = board[row]?.[col];
-    if (kind) {
+    if (isCandyCell(kind)) {
       kinds.push(kind);
     }
   });
@@ -214,7 +293,7 @@ function keysToKinds(board: Board, keys: Set<string>): CandyKind[] {
 
 function addFilledRowKeys(board: Board, row: number, keys: Set<string>): void {
   for (let col = 0; col < BOARD_COLS; col += 1) {
-    if (board[row][col]) {
+    if (isCandyCell(board[row][col])) {
       keys.add(`${row}:${col}`);
     }
   }
@@ -232,7 +311,7 @@ export function expandMatchKeysWithRowBonus(
     for (let row = 0; row < BOARD_ROWS; row += 1) {
       for (let col = 0; col < BOARD_COLS; col += 1) {
         const kind = board[row][col];
-        if (!kind) {
+        if (!isCandyCell(kind)) {
           continue;
         }
 
@@ -348,7 +427,12 @@ export function lockAndResolve(board: Board, piece: ActivePiece): MatchResolutio
   };
 }
 
-export function cellAt(board: Board, row: number, col: number, piece: ActivePiece | null): CandyKind | null {
+export function cellAt(
+  board: Board,
+  row: number,
+  col: number,
+  piece: ActivePiece | null,
+): BoardCell {
   if (piece) {
     for (const cell of pieceCells(piece)) {
       if (cell.row === row && cell.col === col) {
