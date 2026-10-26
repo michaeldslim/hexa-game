@@ -22,7 +22,6 @@ type GestureBoardProps = {
   cellSize: number;
   boardThemeId?: BoardThemeId;
   stoneExpiresAt?: Record<string, number>;
-  stoneClock?: number;
   disabled: boolean;
   onMoveLeft: () => void;
   onMoveRight: () => void;
@@ -37,7 +36,6 @@ export default function GestureBoard({
   cellSize,
   boardThemeId = 'midnight',
   stoneExpiresAt = {},
-  stoneClock = 0,
   disabled,
   onMoveLeft,
   onMoveRight,
@@ -194,11 +192,7 @@ export default function GestureBoard({
                     />
                   ) : null}
                   {cell === 'Stone' ? (
-                    <StoneGem
-                      size={cellSize * 0.94}
-                      expiresAt={stoneExpiresAt[cellKey]}
-                      clock={stoneClock}
-                    />
+                    <StoneGem size={cellSize * 0.94} expiresAt={stoneExpiresAt[cellKey]} />
                   ) : isCandyCell(cell) ? (
                     isMatching ? (
                       <MatchClearCandy kind={cell} size={cellSize * 0.94} />

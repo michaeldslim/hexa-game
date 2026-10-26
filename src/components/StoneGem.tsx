@@ -1,17 +1,25 @@
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { STONE_LIFETIME_MS } from '../constants/game';
 
 type StoneGemProps = {
   size: number;
   expiresAt?: number;
-  clock?: number;
 };
 
-export default function StoneGem({ size, expiresAt, clock = 0 }: StoneGemProps) {
+export default function StoneGem({ size, expiresAt }: StoneGemProps) {
   const radius = Math.max(6, size * 0.16);
   const inner = size * 0.82;
-  const remaining =
-    expiresAt !== undefined ? Math.max(0, expiresAt - (clock || Date.now())) : STONE_LIFETIME_MS;
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (expiresAt === undefined) {
+      return;
+    }
+    const id = setInterval(() => setNow(Date.now()), 400);
+    return () => clearInterval(id);
+  }, [expiresAt]);
+
+  const remaining = expiresAt !== undefined ? Math.max(0, expiresAt - now) : Number.POSITIVE_INFINITY;
   const fadeWindowMs = 2000;
   const opacity =
     expiresAt === undefined
