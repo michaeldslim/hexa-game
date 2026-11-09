@@ -116,7 +116,7 @@ const ko: IStrings = {
   highScore: {
     title: '신기록!',
     scoreLine: '{score}점',
-    initialsHint: '이니셜 1~3자 (영문)을 입력하세요',
+    initialsHint: '이니셜 1~3자 (영문, - _ . 공백 가능)',
     initialsPlaceholder: 'ABC',
     save: '기록하기',
   },
@@ -245,7 +245,7 @@ const en: IStrings = {
   highScore: {
     title: 'New high score!',
     scoreLine: '{score} pts',
-    initialsHint: 'Enter 1–3 letter initials',
+    initialsHint: 'Enter 1–3 chars (letters, - _ . space)',
     initialsPlaceholder: 'ABC',
     save: 'Save',
   },

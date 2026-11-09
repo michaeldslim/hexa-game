@@ -11,7 +11,7 @@ const DEFAULT_RECORD: BestScoreRecord = { score: 0, initials: '' };
 function normalizeInitials(value: string): string {
   return value
     .toUpperCase()
-    .replace(/[^A-Z]/g, '')
+    .replace(/[^A-Z\-_. ]/g, '')
     .slice(0, 3);
 }
 
