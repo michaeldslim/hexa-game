@@ -41,8 +41,6 @@ export interface SavedGameSnapshot {
   level: number;
   combo: number;
   savedAt: number;
-  heldGems?: Triplet | null;
-  holdUsed?: boolean;
   collectProgress?: Partial<Record<CandyKind, number>>;
   stoneTimers?: StoneTimer[];
 }

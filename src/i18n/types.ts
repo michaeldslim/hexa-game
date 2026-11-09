@@ -23,7 +23,6 @@ export interface IStrings {
     difficulty: string;
     records: string;
     next: string;
-    hold: string;
     collect: string;
   };
   matchFeedback: {

@@ -75,9 +75,6 @@ export default function GameScreen({
     board,
     piece,
     nextGems,
-    heldGems,
-    holdEnabled,
-    swapHold,
     matchFeedback,
     collectProgress,
     collectGoal,
@@ -170,7 +167,7 @@ export default function GameScreen({
   const cellSize = useMemo(() => {
     const horizontalPad = 16;
     const verticalPad = insets.top + insets.bottom + headerHeight + footerHeight + 16;
-    const availableWidth = windowWidth - horizontalPad - sideSlotWidth * 2;
+    const availableWidth = windowWidth - horizontalPad - sideSlotWidth;
     const availableHeight = Math.max(120, windowHeight - verticalPad);
     const byWidth = Math.floor(availableWidth / BOARD_COLS);
     const byHeight = Math.floor(availableHeight / BOARD_ROWS);
@@ -309,13 +306,7 @@ export default function GameScreen({
 
       <View style={styles.boardArea}>
         <View style={styles.boardRow}>
-          <SideGemSlot
-            label={strings.hud.hold}
-            gems={heldGems}
-            gemSize={sideGemSize}
-            onPress={swapHold}
-            pressEnabled={holdEnabled}
-          />
+          <View style={{ width: sideSlotWidth }} />
           <GestureBoard
             board={board}
             piece={piece}

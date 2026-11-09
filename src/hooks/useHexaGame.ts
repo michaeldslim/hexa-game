@@ -112,7 +112,6 @@ export function useHexaGame({
   const [isResolving, setIsResolving] = useState(false);
   const [stageClearFlash, setStageClearFlash] = useState(false);
   const [matchedKeys, setMatchedKeys] = useState<string[]>([]);
-  const [heldGems, setHeldGems] = useState<Triplet | null>(() => initialSave?.heldGems ?? null);
   const [collectProgress, setCollectProgress] = useState<Partial<Record<CandyKind, number>>>(
     () => initialSave?.collectProgress ?? {},
   );
@@ -128,9 +127,6 @@ export function useHexaGame({
   const isResolvingRef = useRef(isResolving);
   const playModeRef = useRef(playMode);
   const gamePaceRef = useRef(gamePace);
-  const heldGemsRef = useRef(heldGems);
-  const [holdUsed, setHoldUsed] = useState(() => initialSave?.holdUsed ?? false);
-  const holdUsedRef = useRef(holdUsed);
   const matchFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stoneQueueRef = useRef(
     initialSave?.stoneTimers?.length
@@ -182,8 +178,6 @@ export function useHexaGame({
   gameOverRef.current = gameOver;
   playModeRef.current = playMode;
   gamePaceRef.current = gamePace;
-  heldGemsRef.current = heldGems;
-  holdUsedRef.current = holdUsed;
   bestRecordRef.current = bestRecord;
   pausedRef.current = paused;
 
@@ -334,8 +328,6 @@ export function useHexaGame({
           }
 
           pieceRef.current = spawned;
-          holdUsedRef.current = false;
-          setHoldUsed(false);
           isResolvingRef.current = false;
           setIsResolving(false);
           setPiece(spawned);
@@ -435,11 +427,6 @@ export function useHexaGame({
     setIsResolving(false);
     setStageClearFlash(false);
     setMatchedKeys([]);
-    setHeldGems(snapshot.heldGems ?? null);
-    heldGemsRef.current = snapshot.heldGems ?? null;
-    const savedHoldUsed = snapshot.holdUsed ?? false;
-    holdUsedRef.current = savedHoldUsed;
-    setHoldUsed(savedHoldUsed);
     setCollectProgress(snapshot.collectProgress ?? {});
     stoneQueueRef.current = snapshot.stoneTimers?.length
       ? pruneStoneTimers(snapshot.stoneTimers, snapshot.board)
@@ -479,10 +466,6 @@ export function useHexaGame({
     setStageClearFlash(false);
     setMatchedKeys([]);
     setPendingHighScore(null);
-    setHeldGems(null);
-    heldGemsRef.current = null;
-    holdUsedRef.current = false;
-    setHoldUsed(false);
     setCollectProgress({});
     setMatchFeedback(null);
     bumpStoneMeta();
@@ -531,8 +514,6 @@ export function useHexaGame({
       level: levelRef.current,
       combo: comboRef.current,
       savedAt: Date.now(),
-      heldGems: heldGemsRef.current,
-      holdUsed: holdUsedRef.current,
       collectProgress: collectProgress,
       stoneTimers: stoneQueueRef.current,
     };
@@ -612,53 +593,11 @@ export function useHexaGame({
     pieceRef.current = rotated;
   }, []);
 
-  const swapHold = useCallback(() => {
-    if (
-      holdUsedRef.current ||
-      pausedRef.current ||
-      isResolvingRef.current ||
-      gameOverRef.current
-    ) {
-      return;
-    }
-    const currentPiece = pieceRef.current;
-    if (!currentPiece) {
-      return;
-    }
-
-    holdUsedRef.current = true;
-    setHoldUsed(true);
-
-    if (!heldGemsRef.current) {
-      const stored = currentPiece.gems;
-      const incoming = nextGemsRef.current;
-      const upcoming = rollTriplet(levelRef.current);
-      const nextPiece: ActivePiece = { ...currentPiece, gems: incoming };
-
-      heldGemsRef.current = stored;
-      setHeldGems(stored);
-      nextGemsRef.current = upcoming;
-      setNextGems(upcoming);
-      pieceRef.current = nextPiece;
-      setPiece(nextPiece);
-      return;
-    }
-
-    const swapGems = heldGemsRef.current;
-    heldGemsRef.current = currentPiece.gems;
-    setHeldGems(currentPiece.gems);
-    const swappedPiece: ActivePiece = { ...currentPiece, gems: swapGems };
-    pieceRef.current = swappedPiece;
-    setPiece(swappedPiece);
-  }, []);
-
   const goalScore =
     playMode === 'level' ? levelGoalScore(Math.min(level, MAX_LEVEL)) : 0;
 
   const collectGoal =
     playMode === 'level' ? levelCollectGoal(Math.min(level, MAX_LEVEL)) : null;
-
-  const holdEnabled = !gameOver && !isResolving && !paused && piece !== null && !holdUsed;
 
   const bestScore = Math.max(bestRecord.score, score);
 
@@ -677,9 +616,6 @@ export function useHexaGame({
     stoneExpiresAt,
     piece,
     nextGems,
-    heldGems,
-    holdEnabled,
-    swapHold,
     matchFeedback,
     collectProgress,
     collectGoal,

@@ -22,7 +22,6 @@ const ko: IStrings = {
     difficulty: '난이도',
     records: '기록',
     next: '다음',
-    hold: '홀드',
     collect: '수집',
   },
   matchFeedback: {
@@ -152,7 +151,6 @@ const en: IStrings = {
     difficulty: 'Tier',
     records: 'Records',
     next: 'Next',
-    hold: 'Hold',
     collect: 'Collect',
   },
   matchFeedback: {
