@@ -53,13 +53,13 @@ First Android build: EAS will prompt to create a **keystore** (or upload your ow
 
 ## Controls
 
-Swipe: move / soft drop · Tap falling piece: rotate · **Hold** box: swap with current piece **once per drop**.
+Swipe: move / soft drop · Tap falling piece: rotate.
 
-Board: **6×12** playable cells; **Hold** (left) and **Next** (right) beside the grid.
+Board: **7×12** playable cells; new triplets spawn **only in the center column**; **Next** preview on the right.
 
 ## Gameplay extras
 
-- **Next / Hold** preview above the board.
+- **Next** preview beside the board.
 - **First match** in a chain: “Good!” + score pop; **2+ cascades**: combo callout.
 - **4+ in a line**: bonus **full-row clear** (★).
 - **Level mode**: fewer colors at low tiers; levels 2–5 add **color collect** side goals.

@@ -34,7 +34,7 @@ const ko: IStrings = {
     down: '▼',
     rotate: '↻',
   },
-  gestureHint: '스와이프: 이동·내리기 · 조각 터치: 회전 · 홀드: 1회 교환',
+  gestureHint: '스와이프: 이동·내리기 · 조각 터치: 회전 · 새 조각은 가운데 열에서 등장',
   settings: {
     title: '설정',
     language: '언어',
@@ -163,7 +163,7 @@ const en: IStrings = {
     down: '▼',
     rotate: '↻',
   },
-  gestureHint: 'Swipe to move / drop · Tap piece to rotate · Hold box to swap once',
+  gestureHint: 'Swipe to move / drop · Tap piece to rotate · New pieces spawn in the center column',
   settings: {
     title: 'Settings',
     language: 'Language',

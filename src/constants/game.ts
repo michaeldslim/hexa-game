@@ -1,10 +1,11 @@
 import type { CandyKind, PlayMode } from '../types/game';
 
-export const BOARD_COLS = 6;
+export const BOARD_COLS = 7;
 export const BOARD_ROWS = 12;
 
-/** Any column with room to spawn (Columns-style). */
-export const SPAWN_COLUMN_INDICES: readonly number[] = [0, 1, 2, 3, 4, 5];
+/** Only the center column spawns new triplets. */
+export const SPAWN_CENTER_COL = Math.floor(BOARD_COLS / 2);
+export const SPAWN_COLUMN_INDICES: readonly number[] = [SPAWN_CENTER_COL];
 
 /** Top row of the piece when it spawns (gems use rows row..row+2, all on the 12-row board). */
 export const SPAWN_ROW = 0;

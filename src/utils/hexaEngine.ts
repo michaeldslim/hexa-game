@@ -10,7 +10,7 @@ import {
   SCORE_CHAIN_BONUS,
   SCORE_PER_TILE,
   activeKinds,
-  SPAWN_COLUMN_INDICES,
+  SPAWN_CENTER_COL,
   SPAWN_ROW,
 } from '../constants/game';
 import type {
@@ -146,19 +146,8 @@ export function createSpawnPiece(col: number, row: number, gems: Triplet): Activ
 }
 
 export function defaultSpawn(board: Board, gems: Triplet): ActivePiece | null {
-  const viableCols: number[] = [];
-  for (const col of SPAWN_COLUMN_INDICES) {
-    if (canPlacePiece(board, createSpawnPiece(col, SPAWN_ROW, gems))) {
-      viableCols.push(col);
-    }
-  }
-
-  if (viableCols.length === 0) {
-    return null;
-  }
-
-  const col = viableCols[Math.floor(Math.random() * viableCols.length)];
-  return createSpawnPiece(col, SPAWN_ROW, gems);
+  const piece = createSpawnPiece(SPAWN_CENTER_COL, SPAWN_ROW, gems);
+  return canPlacePiece(board, piece) ? piece : null;
 }
 
 export function tryMoveHorizontal(board: Board, piece: ActivePiece, delta: number): ActivePiece | null {
