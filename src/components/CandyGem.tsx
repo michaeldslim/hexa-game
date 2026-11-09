@@ -7,6 +7,7 @@ const CANDY_IMAGES: Record<CandyKind, ReturnType<typeof require>> = {
   Blue: require('../../assets/images/candy_blue.png'),
   Gold: require('../../assets/images/candy_gold.png'),
   Mint: require('../../assets/images/candy_mint.png'),
+  Green: require('../../assets/images/candy_green.png'),
 };
 
 type CandyGemProps = {

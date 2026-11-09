@@ -45,7 +45,8 @@ export const MAX_SCORE_RECORDS = 10;
 export const PLAY_MODE_KEY = 'hexaPlayMode';
 export const SAVED_GAME_KEY = 'hexaSavedGame';
 
-export const CANDY_KINDS: CandyKind[] = ['Red', 'Blue', 'Gold', 'Mint'];
+/** Order matters for `activeKinds`: colors unlock from the start of this list. */
+export const CANDY_KINDS: CandyKind[] = ['Red', 'Blue', 'Gold', 'Green', 'Mint'];
 
 /** Cumulative score thresholds: reaching score >= value completes that level. */
 export const LEVEL_SCORE_THRESHOLDS: Record<number, number> = {
@@ -60,8 +61,8 @@ export const LEVEL_SCORE_THRESHOLDS: Record<number, number> = {
 export const PIECE_GEM_COUNT = 3;
 
 export function activeKindCount(level: number): number {
-  if (level <= 2) {
-    return 3;
+  if (level <= 3) {
+    return 4;
   }
   return CANDY_KINDS.length;
 }
@@ -75,13 +76,13 @@ export type LevelCollectGoal = {
 export function levelCollectGoal(level: number): LevelCollectGoal | null {
   switch (level) {
     case 2:
-      return { kind: 'Mint', required: 12 };
+      return { kind: 'Green', required: 12 };
     case 3:
       return { kind: 'Gold', required: 18 };
     case 4:
       return { kind: 'Red', required: 24 };
     case 5:
-      return { kind: 'Blue', required: 30 };
+      return { kind: 'Mint', required: 30 };
     default:
       return null;
   }

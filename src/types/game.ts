@@ -1,4 +1,4 @@
-export type CandyKind = 'Red' | 'Blue' | 'Gold' | 'Mint';
+export type CandyKind = 'Red' | 'Blue' | 'Gold' | 'Mint' | 'Green';
 
 /** Fixed obstacle; does not match or fall. */
 export type StoneCell = 'Stone';
