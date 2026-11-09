@@ -17,8 +17,12 @@ import { useSettings } from '../settings/SettingsProvider';
 import { levelToVolume } from '../settings/types';
 import { getBgmSource, SOUND_ASSETS, type SfxId } from './sounds';
 
+export type PlaySfxOptions = {
+  onEnded?: () => void;
+};
+
 type GameAudioContextValue = {
-  playSfx: (id: SfxId) => void;
+  playSfx: (id: SfxId, options?: PlaySfxOptions) => void;
   pauseBgm: () => void;
   resumeBgm: () => void;
 };
@@ -120,8 +124,11 @@ export function GameAudioProvider({
   }, []);
 
   const playSfx = useCallback(
-    (id: SfxId) => {
+    (id: SfxId, options?: PlaySfxOptions) => {
+      const onEnded = options?.onEnded;
+
       if (settings.sfxVolume <= 0) {
+        onEnded?.();
         return;
       }
 
@@ -132,10 +139,35 @@ export function GameAudioProvider({
         bgmRef.current?.pause();
       }
 
+      let ended = false;
+      const finish = () => {
+        if (ended) {
+          return;
+        }
+        ended = true;
+        onEnded?.();
+      };
+
+      let subscription: { remove: () => void } | null = null;
+      if (onEnded) {
+        subscription = player.addListener('playbackStatusUpdate', (status) => {
+          if (status.didJustFinish) {
+            subscription?.remove();
+            subscription = null;
+            finish();
+          }
+        });
+      }
+
       player.volume = volume;
-      void player.seekTo(0).then(() => {
-        player.play();
-      });
+      void player.seekTo(0)
+        .then(() => {
+          player.play();
+        })
+        .catch(() => {
+          subscription?.remove();
+          finish();
+        });
     },
     [ensureSfx, settings.sfxVolume],
   );

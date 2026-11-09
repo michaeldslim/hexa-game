@@ -38,8 +38,8 @@ export const boardThemes: Record<BoardThemeId, BoardTheme> = {
     cellEven: '#1f1a32',
     cellOdd: '#2a2340',
     cellBorder: 'rgba(92, 77, 122, 0.55)',
-    accentColumnIndices: [2, 3],
-    accentColumnTint: 'rgba(255, 209, 102, 0.09)',
+    accentColumnIndices: [],
+    accentColumnTint: 'transparent',
   },
   ocean: {
     id: 'ocean',

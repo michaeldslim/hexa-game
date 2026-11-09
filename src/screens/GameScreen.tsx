@@ -45,6 +45,7 @@ export default function GameScreen({
   const [headerHeight, setHeaderHeight] = useState(180);
   const [footerHeight, setFooterHeight] = useState(40);
   const runRecordedRef = useRef(false);
+  const [gameOverRestartReady, setGameOverRestartReady] = useState(false);
 
   const handleRunEnd = useCallback(
     (payload: { won: boolean; score: number; level: number }) => {
@@ -54,7 +55,8 @@ export default function GameScreen({
       runRecordedRef.current = true;
 
       if (!payload.won) {
-        playSfx('gameOver');
+        setGameOverRestartReady(false);
+        playSfx('gameOver', { onEnded: () => setGameOverRestartReady(true) });
         recordRunResult({ won: false });
         return;
       }
@@ -111,6 +113,16 @@ export default function GameScreen({
   });
 
   useEffect(() => {
+    if (!gameOver) {
+      setGameOverRestartReady(false);
+      return;
+    }
+    if (won) {
+      setGameOverRestartReady(true);
+    }
+  }, [gameOver, won]);
+
+  useEffect(() => {
     if (comboFlashTick === 0 || combo < 2) {
       return;
     }
@@ -147,13 +159,13 @@ export default function GameScreen({
   });
 
   const handleRestart = useCallback(() => {
-    if (pendingHighScore !== null) {
+    if (pendingHighScore !== null || !gameOverRestartReady) {
       return;
     }
     runRecordedRef.current = false;
     restart();
     resumeBgm();
-  }, [pendingHighScore, restart, resumeBgm]);
+  }, [gameOverRestartReady, pendingHighScore, restart, resumeBgm]);
 
   const bestHudValue = useMemo(() => {
     if (bestRecord.initials && score <= bestRecord.score) {
@@ -352,15 +364,21 @@ export default function GameScreen({
         ) : null}
 
         {gameOver ? (
-          <Pressable style={styles.gameOverOverlay} onPress={handleRestart}>
-            <View style={styles.gameOverCard}>
+          <Pressable
+            style={styles.gameOverOverlay}
+            onPress={gameOverRestartReady ? handleRestart : undefined}
+            disabled={!gameOverRestartReady}
+          >
+            <View style={styles.gameOverCard} pointerEvents="none">
               <Text style={styles.gameOverTitle}>
                 {won ? strings.gameOver.titleWin : strings.gameOver.titleLose}
               </Text>
               <Text style={styles.gameOverBody}>
                 {won ? strings.gameOver.winBody : strings.gameOver.loseBody}
               </Text>
-              <Text style={styles.gameOverHint}>{strings.gameOver.tapRestart}</Text>
+              {gameOverRestartReady ? (
+                <Text style={styles.gameOverHint}>{strings.gameOver.tapRestart}</Text>
+              ) : null}
             </View>
           </Pressable>
         ) : null}
