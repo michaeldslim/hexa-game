@@ -23,7 +23,7 @@ export interface MatchResolution {
 }
 
 export interface SavedGameSnapshot {
-  version: 1 | 2;
+  version: 1 | 2 | 3;
   playMode: PlayMode;
   board: Board;
   piece: ActivePiece | null;
@@ -33,6 +33,14 @@ export interface SavedGameSnapshot {
   combo: number;
   savedAt: number;
   collectProgress?: Partial<Record<CandyKind, number>>;
+  /** Rows 0..count-1 are ceiling-blocked (v3). */
+  blockedRowCount?: number;
+  /** @deprecated use ceilingBlockRemainingMs on save */
+  ceilingNextBlockAt?: number | null;
+  /** Ms until the next ceiling row locks when the snapshot was saved. */
+  ceilingBlockRemainingMs?: number | null;
+  /** Visual candy per locked row index (same kind across the row). */
+  ceilingRowKinds?: CandyKind[];
 }
 
 export type MatchFeedback = {
