@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react';
 import { PanResponder, Pressable, StyleSheet, View } from 'react-native';
 import { BOARD_COLS, BOARD_ROWS } from '../constants/game';
 import { boardThemes, cellFill, type BoardThemeId } from '../theme/boardThemes';
-import type { ActivePiece, Board } from '../types/game';
+import type { ActivePiece, Board, CandyKind } from '../types/game';
 import { cellAt, pieceCells } from '../utils/hexaEngine';
 import CandyGem from './CandyGem';
 import { isCandyCell } from '../utils/hexaEngine';
@@ -16,6 +16,8 @@ const SOFT_DROP_MAX_STEPS = 5;
 
 type GestureBoardProps = {
   board: Board;
+  blockedRowCount?: number;
+  ceilingRowKinds?: CandyKind[];
   piece: ActivePiece | null;
   matchedKeys: string[];
   cellSize: number;
@@ -29,6 +31,8 @@ type GestureBoardProps = {
 
 export default function GestureBoard({
   board,
+  blockedRowCount = 0,
+  ceilingRowKinds = [],
   piece,
   matchedKeys,
   cellSize,
@@ -164,6 +168,8 @@ export default function GestureBoard({
               const cell = cellAt(board, row, col, piece);
               const isActive = activeKeys.has(cellKey);
               const isMatching = matchedKeySet.has(cellKey);
+              const isCeilingBlocked = row < blockedRowCount;
+              const ceilingKind = ceilingRowKinds[row];
 
               return (
                 <View
@@ -188,7 +194,12 @@ export default function GestureBoard({
                       ]}
                     />
                   ) : null}
-                  {isCandyCell(cell) ? (
+                  {isCeilingBlocked && ceilingKind !== undefined ? (
+                    <View style={styles.ceilingGemWrap} pointerEvents="none">
+                      <CandyGem kind={ceilingKind} size={cellSize * 0.94} />
+                      <View style={[StyleSheet.absoluteFill, styles.ceilingLockVeil]} />
+                    </View>
+                  ) : isCandyCell(cell) ? (
                     isMatching ? (
                       <MatchClearCandy kind={cell} size={cellSize * 0.94} />
                     ) : isActive ? (
@@ -246,5 +257,14 @@ const styles = StyleSheet.create({
   gemPressable: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  ceilingGemWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ceilingLockVeil: {
+    backgroundColor: 'rgba(12, 14, 22, 0.38)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
 });

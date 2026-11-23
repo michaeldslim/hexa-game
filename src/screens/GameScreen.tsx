@@ -75,6 +75,8 @@ export default function GameScreen({
 
   const {
     board,
+    blockedRowCount,
+    ceilingRowKinds,
     piece,
     nextGems,
     matchFeedback,
@@ -320,6 +322,8 @@ export default function GameScreen({
           <View style={{ width: sideSlotWidth }} />
           <GestureBoard
             board={board}
+            blockedRowCount={blockedRowCount}
+            ceilingRowKinds={ceilingRowKinds}
             piece={piece}
             matchedKeys={matchedKeys}
             cellSize={cellSize}
