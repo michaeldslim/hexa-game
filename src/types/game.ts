@@ -1,9 +1,6 @@
 export type CandyKind = 'Red' | 'Blue' | 'Gold' | 'Mint' | 'Green';
 
-/** Fixed obstacle; does not match or fall. */
-export type StoneCell = 'Stone';
-
-export type BoardCell = CandyKind | StoneCell | null;
+export type BoardCell = CandyKind | null;
 
 export type PlayMode = 'endless' | 'level';
 
@@ -25,12 +22,6 @@ export interface MatchResolution {
   hadMatch: boolean;
 }
 
-export type StoneTimer = {
-  row: number;
-  col: number;
-  expiresAt: number;
-};
-
 export interface SavedGameSnapshot {
   version: 1 | 2;
   playMode: PlayMode;
@@ -42,7 +33,6 @@ export interface SavedGameSnapshot {
   combo: number;
   savedAt: number;
   collectProgress?: Partial<Record<CandyKind, number>>;
-  stoneTimers?: StoneTimer[];
 }
 
 export type MatchFeedback = {
