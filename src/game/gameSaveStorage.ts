@@ -1,9 +1,51 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { BOARD_COLS, BOARD_ROWS, CANDY_KINDS, SAVED_GAME_KEY } from '../constants/game';
+import {
+  BOARD_COLS,
+  BOARD_ROWS,
+  CANDY_KINDS,
+  CEILING_FIRST_BLOCK_MS,
+  CEILING_MAX_BLOCKED_ROWS,
+  SAVED_GAME_KEY,
+} from '../constants/game';
 import type { BoardCell, SavedGameSnapshot } from '../types/game';
 
 function isValidBoardCell(cell: unknown): cell is BoardCell {
   return cell === null || CANDY_KINDS.includes(cell as (typeof CANDY_KINDS)[number]);
+}
+
+function isValidCeilingSnapshotFields(snap: SavedGameSnapshot): boolean {
+  if (snap.version < 3) {
+    return (
+      snap.blockedRowCount === undefined &&
+      snap.ceilingNextBlockAt === undefined &&
+      snap.ceilingBlockRemainingMs === undefined
+    );
+  }
+
+  if (
+    typeof snap.blockedRowCount !== 'number' ||
+    snap.blockedRowCount < 0 ||
+    snap.blockedRowCount > CEILING_MAX_BLOCKED_ROWS
+  ) {
+    return false;
+  }
+
+  const rem = snap.ceilingBlockRemainingMs;
+  if (rem !== undefined && rem !== null && typeof rem !== 'number') {
+    return false;
+  }
+
+  const nextAt = snap.ceilingNextBlockAt;
+  if (nextAt !== undefined && nextAt !== null && typeof nextAt !== 'number') {
+    return false;
+  }
+
+  // v3: remaining ms (current) and/or legacy absolute deadline + savedAt
+  if (rem !== undefined || nextAt !== undefined) {
+    return true;
+  }
+
+  return false;
 }
 
 function isValidSnapshot(value: unknown): value is SavedGameSnapshot {
@@ -11,7 +53,8 @@ function isValidSnapshot(value: unknown): value is SavedGameSnapshot {
     return false;
   }
   const snap = value as SavedGameSnapshot;
-  const versionOk = snap.version === 1 || snap.version === 2;
+  const versionOk = snap.version === 1 || snap.version === 2 || snap.version === 3;
+  const ceilingOk = isValidCeilingSnapshotFields(snap);
   const boardOk =
     Array.isArray(snap.board) &&
     snap.board.length === BOARD_ROWS &&
@@ -23,6 +66,7 @@ function isValidSnapshot(value: unknown): value is SavedGameSnapshot {
     );
   return (
     versionOk &&
+    ceilingOk &&
     (snap.playMode === 'level' || snap.playMode === 'endless') &&
     boardOk &&
     Array.isArray(snap.nextGems) &&
@@ -40,7 +84,19 @@ export async function loadGameSave(): Promise<SavedGameSnapshot | null> {
       return null;
     }
     const parsed: unknown = JSON.parse(raw);
-    return isValidSnapshot(parsed) ? parsed : null;
+    if (!isValidSnapshot(parsed)) {
+      return null;
+    }
+    if (parsed.version < 3) {
+      return {
+        ...parsed,
+        version: 3,
+        blockedRowCount: 0,
+        ceilingBlockRemainingMs: CEILING_FIRST_BLOCK_MS,
+        ceilingRowKinds: [],
+      };
+    }
+    return parsed;
   } catch {
     return null;
   }
