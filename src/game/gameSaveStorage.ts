@@ -3,7 +3,7 @@ import { BOARD_COLS, BOARD_ROWS, CANDY_KINDS, SAVED_GAME_KEY } from '../constant
 import type { BoardCell, SavedGameSnapshot } from '../types/game';
 
 function isValidBoardCell(cell: unknown): cell is BoardCell {
-  return cell === null || cell === 'Stone' || CANDY_KINDS.includes(cell as (typeof CANDY_KINDS)[number]);
+  return cell === null || CANDY_KINDS.includes(cell as (typeof CANDY_KINDS)[number]);
 }
 
 function isValidSnapshot(value: unknown): value is SavedGameSnapshot {
