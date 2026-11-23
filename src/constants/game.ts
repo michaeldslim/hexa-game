@@ -13,6 +13,13 @@ export const SPAWN_ROW = 0;
 /** 5+ in a line also clears that entire row (Star Line bonus). */
 export const ROW_MATCH_BONUS_MIN = 5;
 
+/** Top rows (indices 0..count-1) blocked over time; max three rows. */
+export const CEILING_MAX_BLOCKED_ROWS = 3;
+export const CEILING_FIRST_BLOCK_MS = 50_000;
+export const CEILING_BLOCK_INTERVAL_MS = 40_000;
+/** How often the run checks whether another ceiling row should lock. */
+export const CEILING_CHECK_MS = 500;
+
 export const MIN_MATCH = 3;
 export const MAX_LEVEL = 5;
 
