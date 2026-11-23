@@ -62,6 +62,7 @@ Board: **7×12** playable cells; new triplets spawn **only in the center column*
 - **Next** preview beside the board.
 - **First match** in a chain: “Good!” + score pop; **2+ cascades**: combo callout.
 - **5+ in a line**: bonus **full-row clear** (★).
+- **Ceiling pressure**: over time, up to **3 top rows** lock; new pieces spawn below the lock. Locking a row that still has a gem (board or active triplet) ends the run.
 - **Level mode**: fewer colors at low tiers; levels 2–5 add **color collect** side goals.
 
 ## EAS (Expo Application Services)
