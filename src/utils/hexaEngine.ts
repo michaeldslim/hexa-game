@@ -7,7 +7,6 @@ import {
   SCORE_PER_TILE,
   activeKinds,
   SPAWN_CENTER_COL,
-  SPAWN_ROW,
 } from '../constants/game';
 import type {
   ActivePiece,
@@ -56,12 +55,16 @@ export function pieceCells(piece: ActivePiece): { row: number; col: number; gem:
   }));
 }
 
-export function canPlacePiece(board: Board, piece: ActivePiece): boolean {
+export function canPlacePiece(
+  board: Board,
+  piece: ActivePiece,
+  blockedRowCount = 0,
+): boolean {
   for (const { row, col } of pieceCells(piece)) {
-    if (col < 0 || col >= BOARD_COLS || row >= BOARD_ROWS) {
+    if (row < blockedRowCount || col < 0 || col >= BOARD_COLS || row >= BOARD_ROWS) {
       return false;
     }
-    if (row >= 0 && board[row][col] !== null) {
+    if (board[row][col] !== null) {
       return false;
     }
   }
@@ -72,19 +75,50 @@ export function createSpawnPiece(col: number, row: number, gems: Triplet): Activ
   return { col, row, gems };
 }
 
-export function defaultSpawn(board: Board, gems: Triplet): ActivePiece | null {
-  const piece = createSpawnPiece(SPAWN_CENTER_COL, SPAWN_ROW, gems);
-  return canPlacePiece(board, piece) ? piece : null;
+export function defaultSpawn(
+  board: Board,
+  gems: Triplet,
+  blockedRowCount = 0,
+): ActivePiece | null {
+  const piece = createSpawnPiece(SPAWN_CENTER_COL, blockedRowCount, gems);
+  return canPlacePiece(board, piece, blockedRowCount) ? piece : null;
 }
 
-export function tryMoveHorizontal(board: Board, piece: ActivePiece, delta: number): ActivePiece | null {
+/** Keep an active triplet below the ceiling after another row locks. */
+export function clampPieceAboveCeiling(
+  board: Board,
+  piece: ActivePiece,
+  blockedRowCount: number,
+): ActivePiece | null {
+  if (canPlacePiece(board, piece, blockedRowCount)) {
+    return piece;
+  }
+  if (piece.row < blockedRowCount) {
+    const raised = { ...piece, row: blockedRowCount };
+    if (canPlacePiece(board, raised, blockedRowCount)) {
+      return raised;
+    }
+  }
+  return null;
+}
+
+export function tryMoveHorizontal(
+  board: Board,
+  piece: ActivePiece,
+  delta: number,
+  blockedRowCount = 0,
+): ActivePiece | null {
   const next = { ...piece, col: piece.col + delta };
-  return canPlacePiece(board, next) ? next : null;
+  return canPlacePiece(board, next, blockedRowCount) ? next : null;
 }
 
-export function tryMoveDown(board: Board, piece: ActivePiece): ActivePiece | 'locked' {
+export function tryMoveDown(
+  board: Board,
+  piece: ActivePiece,
+  blockedRowCount = 0,
+): ActivePiece | 'locked' {
   const next = { ...piece, row: piece.row + 1 };
-  if (canPlacePiece(board, next)) {
+  if (canPlacePiece(board, next, blockedRowCount)) {
     return next;
   }
   return 'locked';
@@ -104,11 +138,11 @@ export function lockPiece(board: Board, piece: ActivePiece): Board {
   return next;
 }
 
-export function findMatchKeys(board: Board): Set<string> {
+export function findMatchKeys(board: Board, blockedRowCount = 0): Set<string> {
   const matched = new Set<string>();
 
   for (const [dr, dc] of LINE_DIRS) {
-    for (let row = 0; row < BOARD_ROWS; row += 1) {
+    for (let row = blockedRowCount; row < BOARD_ROWS; row += 1) {
       for (let col = 0; col < BOARD_COLS; col += 1) {
         const kind = board[row][col];
         if (!isCandyCell(kind)) {
@@ -160,12 +194,12 @@ export function findMatchKeys(board: Board): Set<string> {
   return matched;
 }
 
-export function applyGravity(board: Board): Board {
+export function applyGravity(board: Board, blockedRowCount = 0): Board {
   const next = createEmptyBoard();
 
   for (let col = 0; col < BOARD_COLS; col += 1) {
     const gems: CandyKind[] = [];
-    for (let row = BOARD_ROWS - 1; row >= 0; row -= 1) {
+    for (let row = BOARD_ROWS - 1; row >= blockedRowCount; row -= 1) {
       const cell = board[row][col];
       if (isCandyCell(cell)) {
         gems.push(cell);
@@ -225,12 +259,13 @@ function addFilledRowKeys(board: Board, row: number, keys: Set<string>): void {
 export function expandMatchKeysWithRowBonus(
   board: Board,
   baseKeys: Set<string>,
+  blockedRowCount = 0,
 ): { keys: Set<string>; hadRowBonus: boolean } {
   const keys = new Set(baseKeys);
   const bonusRows = new Set<number>();
 
   for (const [dr, dc] of LINE_DIRS) {
-    for (let row = 0; row < BOARD_ROWS; row += 1) {
+    for (let row = blockedRowCount; row < BOARD_ROWS; row += 1) {
       for (let col = 0; col < BOARD_COLS; col += 1) {
         const kind = board[row][col];
         if (!isCandyCell(kind)) {
@@ -298,7 +333,10 @@ export type MatchClearStep = {
   hadRowBonus: boolean;
 };
 
-export function resolveBoardWithSteps(board: Board): {
+export function resolveBoardWithSteps(
+  board: Board,
+  blockedRowCount = 0,
+): {
   steps: MatchClearStep[];
   finalBoard: Board;
   totalCleared: number;
@@ -311,11 +349,15 @@ export function resolveBoardWithSteps(board: Board): {
   const steps: MatchClearStep[] = [];
 
   while (true) {
-    const baseKeys = findMatchKeys(working);
+    const baseKeys = findMatchKeys(working, blockedRowCount);
     if (baseKeys.size === 0) {
       break;
     }
-    const { keys, hadRowBonus } = expandMatchKeysWithRowBonus(working, baseKeys);
+    const { keys, hadRowBonus } = expandMatchKeysWithRowBonus(
+      working,
+      baseKeys,
+      blockedRowCount,
+    );
     const stepScore = scoreForClear(keys.size, chain);
     steps.push({
       matchedKeys: [...keys],
@@ -326,21 +368,34 @@ export function resolveBoardWithSteps(board: Board): {
     });
     totalScore += stepScore;
     totalCleared += keys.size;
-    working = applyGravity(clearMatches(working, keys));
+    working = applyGravity(clearMatches(working, keys), blockedRowCount);
     chain += 1;
   }
 
   return { steps, finalBoard: working, totalCleared, totalScore };
 }
 
-export function resolveBoard(board: Board): { board: Board; totalCleared: number; totalScore: number } {
-  const { finalBoard, totalCleared, totalScore } = resolveBoardWithSteps(board);
+export function resolveBoard(
+  board: Board,
+  blockedRowCount = 0,
+): { board: Board; totalCleared: number; totalScore: number } {
+  const { finalBoard, totalCleared, totalScore } = resolveBoardWithSteps(
+    board,
+    blockedRowCount,
+  );
   return { board: finalBoard, totalCleared, totalScore };
 }
 
-export function lockAndResolve(board: Board, piece: ActivePiece): MatchResolution {
+export function lockAndResolve(
+  board: Board,
+  piece: ActivePiece,
+  blockedRowCount = 0,
+): MatchResolution {
   const locked = lockPiece(board, piece);
-  const { finalBoard, totalCleared, totalScore } = resolveBoardWithSteps(locked);
+  const { finalBoard, totalCleared, totalScore } = resolveBoardWithSteps(
+    locked,
+    blockedRowCount,
+  );
   return {
     board: finalBoard,
     clearedCount: totalCleared,
