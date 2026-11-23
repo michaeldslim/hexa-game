@@ -10,16 +10,8 @@ export const SPAWN_COLUMN_INDICES: readonly number[] = [SPAWN_CENTER_COL];
 /** Top row of the piece when it spawns (gems use rows row..row+2, all on the 12-row board). */
 export const SPAWN_ROW = 0;
 
-/** 4+ in a line also clears that entire row (Star Line bonus). */
-export const ROW_MATCH_BONUS_MIN = 4;
-
-/** Random stone obstacles (mid-board and below). */
-export const OBSTACLE_MIN_ROW = 4;
-export const OBSTACLE_MAX_ON_BOARD = 5;
-export const OBSTACLE_BASE_CHANCE = 0.07;
-export const OBSTACLE_CHANCE_PER_LEVEL = 0.012;
-/** Temporary stones disappear FIFO after this lifetime (ms). */
-export const STONE_LIFETIME_MS = 10_000;
+/** 5+ in a line also clears that entire row (Star Line bonus). */
+export const ROW_MATCH_BONUS_MIN = 5;
 
 export const MIN_MATCH = 3;
 export const MAX_LEVEL = 5;
