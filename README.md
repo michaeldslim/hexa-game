@@ -61,9 +61,8 @@ Board: **7×12** playable cells; new triplets spawn **only in the center column*
 
 - **Next** preview beside the board.
 - **First match** in a chain: “Good!” + score pop; **2+ cascades**: combo callout.
-- **4+ in a line**: bonus **full-row clear** (★).
+- **5+ in a line**: bonus **full-row clear** (★).
 - **Level mode**: fewer colors at low tiers; levels 2–5 add **color collect** side goals.
-- **Stone obstacles**: after each lock, a random **stone** may appear; it vanishes after **~10s** (oldest first), then a new one may appear in another empty cell; gems stack around them.
 
 ## EAS (Expo Application Services)
 
