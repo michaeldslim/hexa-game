@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  CEILING_CHECK_MS,
   MATCH_CHAIN_GAP_MS,
   MATCH_POP_MS,
   MATCH_SPARKLE_MS,
@@ -10,6 +11,13 @@ import {
   levelCollectGoal,
   levelGoalScore,
 } from '../constants/game';
+import {
+  assignKindsForNewCeilingRows,
+  ceilingBlockRemainingMs,
+  ceilingNextBlockAtFromSnapshot,
+  initialCeilingNextBlockAt,
+  processDueCeilingBlocks,
+} from '../game/ceilingBlock';
 import { gamePaceScale, type GamePace } from '../constants/gamePace';
 import { loadBestScoreRecord, saveBestScoreRecord, type BestScoreRecord } from '../game/bestScoreStorage';
 import {
@@ -29,6 +37,7 @@ import type {
 } from '../types/game';
 import {
   applyGravity,
+  clampPieceAboveCeiling,
   clearMatches,
   createEmptyBoard,
   defaultSpawn,
@@ -108,6 +117,17 @@ export function useHexaGame({
     () => initialSave?.collectProgress ?? {},
   );
   const [matchFeedback, setMatchFeedback] = useState<MatchFeedback | null>(null);
+  const [blockedRowCount, setBlockedRowCount] = useState(
+    () => initialSave?.blockedRowCount ?? 0,
+  );
+  const [ceilingNextBlockAt, setCeilingNextBlockAt] = useState<number | null>(() =>
+    initialSave
+      ? ceilingNextBlockAtFromSnapshot(initialSave)
+      : initialCeilingNextBlockAt(),
+  );
+  const [ceilingRowKinds, setCeilingRowKinds] = useState<CandyKind[]>(
+    () => initialSave?.ceilingRowKinds ?? [],
+  );
 
   const boardRef = useRef(board);
   const pieceRef = useRef(piece);
@@ -120,8 +140,13 @@ export function useHexaGame({
   const playModeRef = useRef(playMode);
   const gamePaceRef = useRef(gamePace);
   const matchFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const blockedRowCountRef = useRef(blockedRowCount);
+  const ceilingNextBlockAtRef = useRef(ceilingNextBlockAt);
+  const ceilingPauseBeganAtRef = useRef<number | null>(null);
 
   boardRef.current = board;
+  blockedRowCountRef.current = blockedRowCount;
+  ceilingNextBlockAtRef.current = ceilingNextBlockAt;
   nextGemsRef.current = nextGems;
   scoreRef.current = score;
   levelRef.current = level;
@@ -188,15 +213,92 @@ export function useHexaGame({
     [onRunEnd, queueHighScoreIfNeeded],
   );
 
+  const endRunLoss = useCallback(() => {
+    gameOverRef.current = true;
+    setGameOver(true);
+    setWon(false);
+    setPiece(null);
+    pieceRef.current = null;
+    isResolvingRef.current = false;
+    setIsResolving(false);
+    void clearGameSave();
+    queueHighScoreIfNeeded(scoreRef.current);
+    onRunEnd?.({
+      won: false,
+      score: scoreRef.current,
+      level: levelRef.current,
+    });
+  }, [onRunEnd, queueHighScoreIfNeeded]);
+
+  const applyCeilingResult = useCallback(
+    (result: ReturnType<typeof processDueCeilingBlocks>) => {
+      if (result.gameOver) {
+        endRunLoss();
+        return;
+      }
+      if (result.blockedRowCount === blockedRowCountRef.current) {
+        return;
+      }
+      const prevCount = blockedRowCountRef.current;
+      blockedRowCountRef.current = result.blockedRowCount;
+      ceilingNextBlockAtRef.current = result.ceilingNextBlockAt;
+      setBlockedRowCount(result.blockedRowCount);
+      setCeilingNextBlockAt(result.ceilingNextBlockAt);
+      setCeilingRowKinds((prev) =>
+        assignKindsForNewCeilingRows(
+          prev,
+          prevCount,
+          result.blockedRowCount,
+          levelRef.current,
+        ),
+      );
+
+      const active = pieceRef.current;
+      if (active) {
+        const adjusted = clampPieceAboveCeiling(
+          boardRef.current,
+          active,
+          result.blockedRowCount,
+        );
+        if (!adjusted) {
+          endRunLoss();
+          return;
+        }
+        if (adjusted.row !== active.row) {
+          pieceRef.current = adjusted;
+          setPiece(adjusted);
+        }
+      }
+    },
+    [endRunLoss],
+  );
+
+  const processCeiling = useCallback(() => {
+    if (pausedRef.current || gameOverRef.current || isResolvingRef.current) {
+      return;
+    }
+    const result = processDueCeilingBlocks(
+      boardRef.current,
+      blockedRowCountRef.current,
+      ceilingNextBlockAtRef.current,
+      pieceRef.current,
+    );
+    applyCeilingResult(result);
+  }, [applyCeilingResult]);
+
   const spawnPiece = useCallback((currentBoard: Board, gems: Triplet): ActivePiece | null => {
-    return defaultSpawn(currentBoard, gems);
+    return defaultSpawn(currentBoard, gems, blockedRowCountRef.current);
   }, []);
 
   const ensureActivePiece = useCallback(() => {
     if (gameOverRef.current || isResolvingRef.current || pieceRef.current) {
       return;
     }
-    const spawned = defaultSpawn(boardRef.current, nextGemsRef.current);
+    const spawned = defaultSpawn(
+      boardRef.current,
+      nextGemsRef.current,
+      blockedRowCountRef.current,
+    );
     if (!spawned) {
       gameOverRef.current = true;
       setGameOver(true);
@@ -214,8 +316,9 @@ export function useHexaGame({
       setPiece(null);
       pieceRef.current = null;
 
+      const ceilingRows = blockedRowCountRef.current;
       const locked = lockPiece(currentBoard, lockedPiece);
-      const { steps, finalBoard, totalScore } = resolveBoardWithSteps(locked);
+      const { steps, finalBoard, totalScore } = resolveBoardWithSteps(locked, ceilingRows);
       const scale = paceScale();
       const matchClearMs = Math.round(
         (MATCH_SPARKLE_MS + MATCH_POP_MS) * scale.matchSparkle,
@@ -261,20 +364,9 @@ export function useHexaGame({
 
           const spawned = spawnPiece(spawnBoard, incoming);
           if (!spawned) {
-            gameOverRef.current = true;
-            setGameOver(true);
-            setWon(false);
-            setPiece(null);
-            pieceRef.current = null;
             isResolvingRef.current = false;
             setIsResolving(false);
-            void clearGameSave();
-            queueHighScoreIfNeeded(scoreRef.current);
-            onRunEnd?.({
-              won: false,
-              score: scoreRef.current,
-              level: levelRef.current,
-            });
+            endRunLoss();
             return;
           }
 
@@ -335,6 +427,7 @@ export function useHexaGame({
           setMatchedKeys([]);
           const afterStep = applyGravity(
             clearMatches(step.boardBeforeClear, new Set(step.matchedKeys)),
+            ceilingRows,
           );
           setBoard(afterStep);
           boardRef.current = afterStep;
@@ -345,15 +438,7 @@ export function useHexaGame({
 
       runStep();
     },
-    [
-      applyScore,
-      onLineMatched,
-      onPieceLocked,
-      onRunEnd,
-      paceScale,
-      queueHighScoreIfNeeded,
-      spawnPiece,
-    ],
+    [applyScore, endRunLoss, onLineMatched, onPieceLocked, paceScale, spawnPiece],
   );
 
   const applySnapshot = useCallback((snapshot: SavedGameSnapshot) => {
@@ -378,18 +463,40 @@ export function useHexaGame({
     setStageClearFlash(false);
     setMatchedKeys([]);
     setCollectProgress(snapshot.collectProgress ?? {});
-    if (!snapshot.piece) {
+    const count = snapshot.blockedRowCount ?? 0;
+    const nextAt = ceilingNextBlockAtFromSnapshot(snapshot);
+    blockedRowCountRef.current = count;
+    ceilingNextBlockAtRef.current = nextAt;
+    setBlockedRowCount(count);
+    setCeilingNextBlockAt(nextAt);
+    const savedKinds = snapshot.ceilingRowKinds ?? [];
+    setCeilingRowKinds(
+      count > savedKinds.length
+        ? assignKindsForNewCeilingRows(savedKinds, savedKinds.length, count, snapshot.level)
+        : savedKinds,
+    );
+
+    const ceilingResult = processDueCeilingBlocks(
+      snapshot.board,
+      count,
+      nextAt,
+      snapshot.piece,
+    );
+    applyCeilingResult(ceilingResult);
+
+    if (!snapshot.piece && !gameOverRef.current) {
       ensureActivePiece();
     }
-  }, [ensureActivePiece]);
+  }, [applyCeilingResult, ensureActivePiece]);
 
   const restart = useCallback(() => {
     const startBoard = createEmptyBoard();
+    const nextBlockAt = initialCeilingNextBlockAt();
 
     boardRef.current = startBoard;
     const firstNext = rollTriplet(1);
     const firstGems = rollTriplet(1);
-    const spawned = defaultSpawn(startBoard, firstGems);
+    const spawned = defaultSpawn(startBoard, firstGems, 0);
     pieceRef.current = spawned;
     nextGemsRef.current = firstNext;
     levelRef.current = 1;
@@ -413,6 +520,11 @@ export function useHexaGame({
     setPendingHighScore(null);
     setCollectProgress({});
     setMatchFeedback(null);
+    blockedRowCountRef.current = 0;
+    ceilingNextBlockAtRef.current = nextBlockAt;
+    setBlockedRowCount(0);
+    setCeilingNextBlockAt(nextBlockAt);
+    setCeilingRowKinds([]);
 
     void clearGameSave();
 
@@ -449,7 +561,7 @@ export function useHexaGame({
       return null;
     }
     return {
-      version: 2,
+      version: 3,
       playMode: playModeRef.current,
       board: boardRef.current,
       piece: pieceRef.current,
@@ -459,8 +571,11 @@ export function useHexaGame({
       combo: comboRef.current,
       savedAt: Date.now(),
       collectProgress: collectProgress,
+      blockedRowCount: blockedRowCountRef.current,
+      ceilingBlockRemainingMs: ceilingBlockRemainingMs(ceilingNextBlockAtRef.current),
+      ceilingRowKinds,
     };
-  }, [collectProgress]);
+  }, [ceilingRowKinds, collectProgress]);
 
   const lockCurrentPiece = useCallback(() => {
     const currentBoard = boardRef.current;
@@ -481,7 +596,8 @@ export function useHexaGame({
       return;
     }
 
-    const moved = tryMoveDown(currentBoard, currentPiece);
+    const rows = blockedRowCountRef.current;
+    const moved = tryMoveDown(currentBoard, currentPiece, rows);
     if (moved === 'locked') {
       lockCurrentPiece();
       return;
@@ -500,6 +616,37 @@ export function useHexaGame({
     return () => clearInterval(id);
   }, [gamePace, level, tickDown]);
 
+  useEffect(() => {
+    const id = setInterval(() => {
+      processCeiling();
+    }, CEILING_CHECK_MS);
+    return () => clearInterval(id);
+  }, [processCeiling]);
+
+  useEffect(() => {
+    if (paused) {
+      if (ceilingPauseBeganAtRef.current === null) {
+        ceilingPauseBeganAtRef.current = Date.now();
+      }
+      return;
+    }
+
+    const pauseBegan = ceilingPauseBeganAtRef.current;
+    ceilingPauseBeganAtRef.current = null;
+    if (pauseBegan === null) {
+      return;
+    }
+
+    const pausedMs = Date.now() - pauseBegan;
+    if (pausedMs <= 0 || ceilingNextBlockAtRef.current === null) {
+      return;
+    }
+
+    const shifted = ceilingNextBlockAtRef.current + pausedMs;
+    ceilingNextBlockAtRef.current = shifted;
+    setCeilingNextBlockAt(shifted);
+  }, [paused]);
+
   const moveHorizontal = useCallback((delta: number) => {
     if (pausedRef.current || isResolvingRef.current || gameOverRef.current) {
       return;
@@ -509,7 +656,12 @@ export function useHexaGame({
     if (!currentPiece) {
       return;
     }
-    const moved = tryMoveHorizontal(currentBoard, currentPiece, delta);
+    const moved = tryMoveHorizontal(
+      currentBoard,
+      currentPiece,
+      delta,
+      blockedRowCountRef.current,
+    );
     if (moved) {
       setPiece(moved);
       pieceRef.current = moved;
@@ -544,6 +696,8 @@ export function useHexaGame({
 
   return {
     board,
+    blockedRowCount,
+    ceilingRowKinds,
     piece,
     nextGems,
     matchFeedback,
