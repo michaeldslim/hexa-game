@@ -2,10 +2,6 @@ import {
   BOARD_COLS,
   BOARD_ROWS,
   MIN_MATCH,
-  OBSTACLE_BASE_CHANCE,
-  OBSTACLE_CHANCE_PER_LEVEL,
-  OBSTACLE_MAX_ON_BOARD,
-  OBSTACLE_MIN_ROW,
   ROW_MATCH_BONUS_MIN,
   SCORE_CHAIN_BONUS,
   SCORE_PER_TILE,
@@ -23,76 +19,7 @@ import type {
 } from '../types/game';
 
 export function isCandyCell(cell: BoardCell): cell is CandyKind {
-  return cell !== null && cell !== 'Stone';
-}
-
-export function isStoneCell(cell: BoardCell): boolean {
-  return cell === 'Stone';
-}
-
-function countStones(board: Board): number {
-  let n = 0;
-  for (let row = 0; row < BOARD_ROWS; row += 1) {
-    for (let col = 0; col < BOARD_COLS; col += 1) {
-      if (board[row][col] === 'Stone') {
-        n += 1;
-      }
-    }
-  }
-  return n;
-}
-
-export function obstacleSpawnChance(level: number): number {
-  return OBSTACLE_BASE_CHANCE + (level - 1) * OBSTACLE_CHANCE_PER_LEVEL;
-}
-
-export type ObstacleSpawnOptions = {
-  minRow?: number;
-  chance?: number;
-};
-
-/** Maybe place one stone in a random empty cell. */
-export function maybeSpawnObstacle(
-  board: Board,
-  level: number,
-  options: ObstacleSpawnOptions = {},
-): Board {
-  if (countStones(board) >= OBSTACLE_MAX_ON_BOARD) {
-    return board;
-  }
-  const chance = options.chance ?? obstacleSpawnChance(level);
-  if (Math.random() >= chance) {
-    return board;
-  }
-
-  const minRow = options.minRow ?? OBSTACLE_MIN_ROW;
-
-  const candidates: { row: number; col: number }[] = [];
-  for (let row = minRow; row < BOARD_ROWS; row += 1) {
-    for (let col = 0; col < BOARD_COLS; col += 1) {
-      if (board[row][col] === null) {
-        candidates.push({ row, col });
-      }
-    }
-  }
-
-  if (candidates.length === 0) {
-    return board;
-  }
-
-  const pick = candidates[Math.floor(Math.random() * candidates.length)]!;
-  const next = board.map((row) => [...row]);
-  next[pick.row][pick.col] = 'Stone';
-  return next;
-}
-
-export function boardAfterLockSettle(board: Board, level: number): Board {
-  return maybeSpawnObstacle(board, level, { minRow: OBSTACLE_MIN_ROW });
-}
-
-/** After a timed stone vanishes, place one new stone if there is room. */
-export function replenishStoneAfterExpiry(board: Board, level: number): Board {
-  return maybeSpawnObstacle(board, level, { minRow: OBSTACLE_MIN_ROW, chance: 1 });
+  return cell !== null;
 }
 
 const LINE_DIRS: [number, number][] = [
@@ -237,12 +164,6 @@ export function applyGravity(board: Board): Board {
   const next = createEmptyBoard();
 
   for (let col = 0; col < BOARD_COLS; col += 1) {
-    for (let row = 0; row < BOARD_ROWS; row += 1) {
-      if (board[row][col] === 'Stone') {
-        next[row][col] = 'Stone';
-      }
-    }
-
     const gems: CandyKind[] = [];
     for (let row = BOARD_ROWS - 1; row >= 0; row -= 1) {
       const cell = board[row][col];
@@ -251,13 +172,8 @@ export function applyGravity(board: Board): Board {
       }
     }
 
-    let gemIdx = 0;
-    for (let row = BOARD_ROWS - 1; row >= 0 && gemIdx < gems.length; row -= 1) {
-      if (next[row][col] === 'Stone') {
-        continue;
-      }
-      next[row][col] = gems[gemIdx];
-      gemIdx += 1;
+    for (let i = 0; i < gems.length; i += 1) {
+      next[BOARD_ROWS - 1 - i][col] = gems[i]!;
     }
   }
 
@@ -305,7 +221,7 @@ function addFilledRowKeys(board: Board, row: number, keys: Set<string>): void {
   }
 }
 
-/** 4+ line match also clears that row (Star Line). */
+/** 5+ line match also clears that row (Star Line). */
 export function expandMatchKeysWithRowBonus(
   board: Board,
   baseKeys: Set<string>,
