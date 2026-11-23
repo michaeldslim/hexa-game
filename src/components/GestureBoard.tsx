@@ -5,7 +5,6 @@ import { boardThemes, cellFill, type BoardThemeId } from '../theme/boardThemes';
 import type { ActivePiece, Board } from '../types/game';
 import { cellAt, pieceCells } from '../utils/hexaEngine';
 import CandyGem from './CandyGem';
-import StoneGem from './StoneGem';
 import { isCandyCell } from '../utils/hexaEngine';
 import MatchClearCandy from './MatchClearCandy';
 
@@ -21,7 +20,6 @@ type GestureBoardProps = {
   matchedKeys: string[];
   cellSize: number;
   boardThemeId?: BoardThemeId;
-  stoneExpiresAt?: Record<string, number>;
   disabled: boolean;
   onMoveLeft: () => void;
   onMoveRight: () => void;
@@ -35,7 +33,6 @@ export default function GestureBoard({
   matchedKeys,
   cellSize,
   boardThemeId = 'midnight',
-  stoneExpiresAt = {},
   disabled,
   onMoveLeft,
   onMoveRight,
@@ -191,9 +188,7 @@ export default function GestureBoard({
                       ]}
                     />
                   ) : null}
-                  {cell === 'Stone' ? (
-                    <StoneGem size={cellSize * 0.94} expiresAt={stoneExpiresAt[cellKey]} />
-                  ) : isCandyCell(cell) ? (
+                  {isCandyCell(cell) ? (
                     isMatching ? (
                       <MatchClearCandy kind={cell} size={cellSize * 0.94} />
                     ) : isActive ? (
